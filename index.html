@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HandCaption — Your Handwriting Captions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">✍️ HandCaption</div>
+    <div class="tagline">Your handwriting. Your captions.</div>
+  </header>
+
+  <main>
+    <section id="step1" class="card">
+      <div class="step">STEP 1</div>
+      <h1>Create your handwriting pack</h1>
+      <p>Draw each character in the box. Start with the characters you use most; missing characters fall back to a normal font.</p>
+      <div class="pack-row">
+        <label>Pack name <input id="packName" value="My Handwriting" maxlength="30"></label>
+        <button id="savePack" class="primary">Save handwriting pack</button>
+        <button id="clearPack" class="ghost">Clear</button>
+      </div>
+      <div id="characterGrid" class="character-grid"></div>
+      <div class="hint">Tip: use your finger, mouse, or stylus. You can redraw any character before saving.</div>
+    </section>
+
+    <section id="step2" class="card">
+      <div class="step">STEP 2</div>
+      <h2>Upload one photo</h2>
+      <label class="upload">
+        <span>＋ Choose photo</span>
+        <input id="imageInput" type="file" accept="image/*">
+      </label>
+      <div id="editorWrap" class="editor-wrap hidden">
+        <div class="toolbar">
+          <select id="packSelect"></select>
+          <input id="captionInput" placeholder="Type your caption..." value="Life is beautiful ♡" maxlength="120">
+          <label>Size <input id="sizeInput" type="range" min="12" max="160" value="54"></label>
+          <label>Color <input id="colorInput" type="color" value="#ffffff"></label>
+          <button id="addCaption" class="primary">Add handwriting</button>
+          <button id="exportBtn" class="success">Export PNG</button>
+        </div>
+        <div class="canvas-holder">
+          <canvas id="editorCanvas"></canvas>
+        </div>
+        <p class="hint">Drag the caption to move it. Wheel/trackpad over the caption changes its size. Double-click the caption to edit.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="step">SAVED PACKS</div>
+      <div id="savedPacks" class="saved-packs"></div>
+    </section>
+  </main>
+
+  <footer>Free • No login • Your handwriting stays in this browser</footer>
+  <script src="app.js"></script>
+</body>
+</html>
