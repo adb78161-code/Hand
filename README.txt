@@ -1,10 +1,15 @@
-HANDCAPTION MVP
-1. Open index.html in a modern browser.
-2. Draw characters using mouse, touch, or stylus.
-3. Save a handwriting pack.
-4. Upload one photo.
-5. Select the pack, type a caption, and add it.
-6. Drag the caption and export PNG.
+HANDCAPTION V2
 
-This is a local, no-login prototype. Packs are stored in browser localStorage.
-Video rendering, automatic handwriting-sheet recognition, pack import/export, and true TTF font generation are planned for later versions.
+Main changes:
+1. User must write all 26 uppercase letters.
+2. User must write all 26 lowercase letters.
+3. User must write all 10 digits.
+4. Total required characters = 62.
+5. Every character can be erased and rewritten individually.
+6. Save button remains disabled until all 62 are completed.
+7. Photo/video upload remains locked until the handwriting pack is saved.
+8. No login is required.
+9. Handwriting is stored locally in browser localStorage.
+
+This version intentionally locks the media editor until the handwriting step is complete.
+The next version can reconnect the photo/video caption editor after successful pack creation.
