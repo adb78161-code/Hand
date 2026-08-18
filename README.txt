@@ -1,15 +1,17 @@
-HANDCAPTION V2
+HANDCAPTION V4 — Android fixes
 
-Main changes:
-1. User must write all 26 uppercase letters.
-2. User must write all 26 lowercase letters.
-3. User must write all 10 digits.
-4. Total required characters = 62.
-5. Every character can be erased and rewritten individually.
-6. Save button remains disabled until all 62 are completed.
-7. Photo/video upload remains locked until the handwriting pack is saved.
-8. No login is required.
-9. Handwriting is stored locally in browser localStorage.
+Fixed:
+1. Upload button is now a normal button that directly opens the Android file picker.
+2. Photo/video file selection is handled independently from the label/input.
+3. Saved handwriting packs have a real selector and can be tapped.
+4. The selected pack is remembered after refresh.
+5. Existing complete handwriting packs can be reused after reopening the page.
+6. Saving the same pack name updates it instead of creating another duplicate.
+7. Selected handwriting is used for the caption.
+8. Photo export works.
+9. Video can be selected, played and previewed with the handwriting overlay.
+10. No server is required.
 
-This version intentionally locks the media editor until the handwriting step is complete.
-The next version can reconnect the photo/video caption editor after successful pack creation.
+Important:
+- If an old browser version has corrupted/duplicate packs, use the browser's site data clear option once and create a fresh pack.
+- Video MP4 export is still the next feature.
