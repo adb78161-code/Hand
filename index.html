@@ -1,138 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#111111">
-  <title>HandCaption</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>HandCaption</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 <header class="topbar">
   <div class="brand">✍️ HandCaption</div>
   <div class="tagline">Your handwriting. Your captions.</div>
 </header>
 
 <main>
+<section class="card">
+  <div class="step">STEP 1</div>
+  <h1>Create your handwriting</h1>
+  <p>Write all uppercase letters, lowercase letters and digits. You can erase and rewrite any character.</p>
 
-  <!-- STEP 1 -->
-  <section class="card">
-    <div class="step">STEP 1</div>
-    <h1>Create your handwriting</h1>
-    <p>
-      Write every uppercase letter, lowercase letter and digit.
-      You can erase and rewrite any character before saving.
-    </p>
-
-    <div class="pack-row">
-      <label>
-        Pack name
-        <input id="packName" value="My Handwriting" maxlength="30">
-      </label>
-
-      <button id="savePack" class="primary" disabled>
-        Save handwriting
-      </button>
-
-      <button id="clearPack" class="ghost">
-        Clear all
-      </button>
-    </div>
-
-    <div class="progress-box">
-      <div class="progress-text">
-        <strong id="progressText">0 / 62 completed</strong>
-        <span id="progressMessage">Write every character to continue.</span>
-      </div>
-      <div class="progress-track">
-        <div id="progressBar"></div>
-      </div>
-    </div>
-
-    <div class="character-section">
-      <h3>Uppercase A–Z</h3>
-      <div id="uppercaseGrid" class="character-grid"></div>
-    </div>
-
-    <div class="character-section">
-      <h3>Lowercase a–z</h3>
-      <div id="lowercaseGrid" class="character-grid"></div>
-    </div>
-
-    <div class="character-section">
-      <h3>Digits 0–9</h3>
-      <div id="digitsGrid" class="character-grid"></div>
-    </div>
-
-    <div class="hint">
-      Your handwriting pack is stored locally in this browser. No account or login is required.
-    </div>
-  </section>
-
-  <!-- STEP 2 -->
-  <section id="mediaSection" class="card locked">
-    <div class="step">STEP 2</div>
-    <h2>Add your photo or video</h2>
-
-    <div id="lockedMessage" class="locked-message">
-      🔒 Complete all 62 handwriting characters and save your handwriting pack first.
-    </div>
-
-    <label id="uploadButton" class="upload disabled">
-      <span>＋ Choose photo or video</span>
-      <input id="mediaInput" type="file" accept="image/*,video/*" disabled>
+  <div class="pack-row">
+    <label>Pack name
+      <input id="packName" value="My Handwriting" maxlength="30">
     </label>
+    <button id="savePack" class="primary" disabled>Save handwriting</button>
+    <button id="clearPack" class="ghost">Clear all</button>
+  </div>
 
-    <div id="editorWrap" class="editor-wrap hidden">
-
-      <div class="toolbar">
-        <input id="captionInput"
-               placeholder="Type your caption..."
-               maxlength="200">
-
-        <label>
-          Size
-          <input id="sizeInput" type="range" min="12" max="160" value="54">
-        </label>
-
-        <label>
-          Color
-          <input id="colorInput" type="color" value="#ffffff">
-        </label>
-
-        <button id="addCaption" class="primary">
-          Add handwriting
-        </button>
-
-        <button id="exportBtn" class="success">
-          Export
-        </button>
-      </div>
-
-      <div id="canvasHolder" class="canvas-holder">
-        <canvas id="editorCanvas"></canvas>
-      </div>
-
-      <p class="hint">
-        Drag the caption with your finger. The text is converted using your saved handwriting.
-      </p>
-
+  <div class="progress-box">
+    <div class="progress-text">
+      <strong id="progressText">0 / 62 completed</strong>
+      <span id="progressMessage">Write every character to continue.</span>
     </div>
-  </section>
+    <div class="progress-track"><div id="progressBar"></div></div>
+  </div>
 
-  <!-- SAVED PACK -->
-  <section class="card">
-    <div class="step">SAVED HANDWRITING</div>
-    <div id="savedPacks" class="saved-packs"></div>
-  </section>
+  <h3>Uppercase A–Z</h3>
+  <div id="uppercaseGrid" class="character-grid"></div>
 
+  <h3>Lowercase a–z</h3>
+  <div id="lowercaseGrid" class="character-grid"></div>
+
+  <h3>Digits 0–9</h3>
+  <div id="digitsGrid" class="character-grid"></div>
+
+  <div class="hint">Your handwriting is stored on this device. No account or login is required.</div>
+</section>
+
+<section id="mediaSection" class="card locked">
+  <div class="step">STEP 2</div>
+  <h2>Add your photo or video</h2>
+
+  <div id="lockedMessage" class="locked-message">
+    🔒 Complete all 62 characters and save a handwriting pack first.
+  </div>
+
+  <div class="pack-selector">
+    <label>Use handwriting pack
+      <select id="packSelect" disabled>
+        <option value="">No pack selected</option>
+      </select>
+    </label>
+  </div>
+
+  <button id="chooseMediaButton" class="upload-button" disabled>
+    ＋ Choose photo or video
+  </button>
+  <input id="mediaInput" type="file" accept="image/*,video/*" hidden>
+
+  <div id="editorWrap" class="editor-wrap hidden">
+    <div id="mediaType" class="media-type"></div>
+
+    <div class="toolbar">
+      <input id="captionInput" placeholder="Type your caption..." maxlength="200">
+      <label>Size
+        <input id="sizeInput" type="range" min="18" max="160" value="54">
+      </label>
+      <label>Color
+        <input id="colorInput" type="color" value="#ffffff">
+      </label>
+      <button id="addCaption" class="primary">Add / update caption</button>
+      <button id="exportBtn" class="success">Export photo</button>
+    </div>
+
+    <div id="imageEditor" class="canvas-holder hidden">
+      <canvas id="editorCanvas"></canvas>
+    </div>
+
+    <div id="videoEditor" class="video-holder hidden">
+      <video id="videoPreview" controls playsinline></video>
+      <canvas id="videoOverlay"></canvas>
+      <div class="video-note">Video preview is local. MP4 export will be added next.</div>
+    </div>
+
+    <p class="hint">Select a saved pack, type your caption, then drag the handwriting with your finger.</p>
+  </div>
+</section>
+
+<section class="card">
+  <div class="step">SAVED HANDWRITING</div>
+  <div id="savedPacks" class="saved-packs"></div>
+</section>
 </main>
 
-<footer>
-  Free • No login • Your handwriting stays on your device
-</footer>
-
+<footer>Free • No login • Your handwriting stays on your device</footer>
 <script src="app.js"></script>
 </body>
 </html>
