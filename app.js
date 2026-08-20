@@ -1,142 +1,47 @@
 // @ts-nocheck
-
-const U=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"], L=[..."abcdefghijklmnopqrstuvwxyz"], D=[..."0123456789"], ALL=[...U,...L,...D];
-const $=id=>document.getElementById(id);
-const canvases=new Map();
-
-const mediaSection=$("mediaSection"), lockedMessage=$("lockedMessage"), chooseMediaButton=$("chooseMediaButton");
-const mediaInput=$("mediaInput"), packSelect=$("packSelect"), savedPacks=$("savedPacks");
-const editorWrap=$("editorWrap"), imageEditor=$("imageEditor"), videoEditor=$("videoEditor");
-const editorCanvas=$("editorCanvas"), ectx=editorCanvas.getContext("2d");
-const videoPreview=$("videoPreview"), videoOverlay=$("videoOverlay"), voctx=videoOverlay.getContext("2d");
-let selectedPackId=localStorage.getItem("handcaption_selected_pack")||"";
-let baseImage=null,currentVideoURL=null,currentMediaType=null,textLayer=null,dragging=false,dragOffset={x:0,y:0};
-const glyphCache=new Map();
-
-function addChar(ch,parent){
-  const card=document.createElement("div"),title=document.createElement("div"),canvas=document.createElement("canvas");
-  card.className="char-card";title.className="char-title";title.textContent=ch;
-  canvas.className="char-canvas";canvas.width=180;canvas.height=90;
-  const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.lineCap="round";ctx.lineJoin="round";ctx.lineWidth=4;ctx.strokeStyle="#111";
-  let drawing=false;
-  const pos=e=>{const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}};
-  canvas.onpointerdown=e=>{e.preventDefault();drawing=true;try{canvas.setPointerCapture(e.pointerId)}catch(_){}const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
-  canvas.onpointermove=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};
-  const stop=e=>{drawing=false;try{canvas.releasePointerCapture(e.pointerId)}catch(_){}updateChar(ch);updateProgress()};
-  canvas.onpointerup=stop;canvas.onpointercancel=stop;
-  const actions=document.createElement("div"),erase=document.createElement("button"),status=document.createElement("div");
-  actions.className="char-actions";erase.className="ghost";erase.textContent="Erase & rewrite";status.className="completed-label";
-  erase.onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);updateChar(ch);updateProgress();canvas.scrollIntoView({behavior:"smooth",block:"center"})};
-  actions.appendChild(erase);card.append(title,canvas,actions,status);parent.appendChild(card);canvases.set(ch,{canvas,card,status});
-}
-U.forEach(c=>addChar(c,$("uppercaseGrid")));L.forEach(c=>addChar(c,$("lowercaseGrid")));D.forEach(c=>addChar(c,$("digitsGrid")));
-
+const U=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"],L=[..."abcdefghijklmnopqrstuvwxyz"],D=[..."0123456789"],ALL=[...U,...L,...D];
+const $=id=>document.getElementById(id), canvases=new Map(),history=new Map(),glyphCache=new Map();
+let selectedPackId=localStorage.getItem("handcaption_selected_pack")||"",currentEditingPackId=null,currentMediaType=null,baseImage=null,currentVideoURL=null,textLayer=null,dragging=false,dragOffset={x:0,y:0};
+function oldPacks(){try{return JSON.parse(localStorage.getItem("handcaption_packs")||"[]")}catch(_){return[]}}
+function packs(){try{let p=JSON.parse(localStorage.getItem("handcaption_packs_v5")||"null");if(Array.isArray(p))return p}catch(_){}let p=oldPacks().map((x,i)=>({...x,id:x.id||"pack_"+(x.created||Date.now())+"_"+i}));if(p.length)localStorage.setItem("handcaption_packs_v5",JSON.stringify(p));return p}
+function savePacks(p){try{localStorage.setItem("handcaption_packs_v5",JSON.stringify(p));return true}catch(_){alert("Storage is full. Delete an old pack.");return false}}
 function blank(c){const d=c.getContext("2d",{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;for(let i=3;i<d.length;i+=4)if(d[i]>0)return false;return true}
-function updateChar(ch){const i=canvases.get(ch),done=!blank(i.canvas);i.card.classList.toggle("completed",done);i.status.textContent=done?"✓ Written":""}
+function snap(ch){return canvases.get(ch).canvas.toDataURL("image/png")}
+function push(ch){const h=history.get(ch),s=snap(ch);if(h.states[h.index]!==s){h.states=h.states.slice(0,h.index+1);h.states.push(s);h.index=h.states.length-1}buttons(ch)}
+function buttons(ch){const i=canvases.get(ch),h=history.get(ch);i.undo.disabled=h.index<=0;i.redo.disabled=h.index>=h.states.length-1}
+function restore(ch,dir){const h=history.get(ch),n=h.index+dir;if(n<0||n>=h.states.length)return;h.index=n;const im=new Image();im.onload=()=>{const i=canvases.get(ch),c=i.canvas,ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(im,0,0);update(ch);updateProgress();buttons(ch)};im.src=h.states[h.index]}
+function addChar(ch,parent){const card=document.createElement("div"),title=document.createElement("div"),c=document.createElement("canvas");card.className="char-card";title.className="char-title";title.textContent=ch;c.className="char-canvas";c.width=180;c.height=90;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.lineCap="round";ctx.lineJoin="round";ctx.lineWidth=4;ctx.strokeStyle="#111";let drawing=false;
+const pos=e=>{const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}};c.onpointerdown=e=>{e.preventDefault();drawing=true;try{c.setPointerCapture(e.pointerId)}catch(_){}const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};c.onpointermove=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};const stop=e=>{drawing=false;try{c.releasePointerCapture(e.pointerId)}catch(_){}push(ch);update(ch);updateProgress()};c.onpointerup=stop;c.onpointercancel=stop;
+const actions=document.createElement("div");actions.className="char-actions";const undo=document.createElement("button"),redo=document.createElement("button");undo.className=redo.className="ghost";undo.textContent="Undo";redo.textContent="Redo";undo.onclick=()=>restore(ch,-1);redo.onclick=()=>restore(ch,1);actions.append(undo,redo);
+const actions2=document.createElement("div");actions2.className="char-actions";const erase=document.createElement("button");erase.className="ghost";erase.textContent="Erase";erase.onclick=()=>{ctx.clearRect(0,0,c.width,c.height);push(ch);update(ch);updateProgress()};actions2.append(erase);
+const status=document.createElement("div");status.className="completed-label";card.append(title,c,actions,actions2,status);parent.append(card);canvases.set(ch,{canvas:c,card,status,undo,redo});history.set(ch,{states:[],index:-1});push(ch)}
+U.forEach(c=>addChar(c,$("uppercaseGrid")));L.forEach(c=>addChar(c,$("lowercaseGrid")));D.forEach(c=>addChar(c,$("digitsGrid")));
+function update(ch){const i=canvases.get(ch),d=!blank(i.canvas);i.card.classList.toggle("completed",d);i.status.textContent=d?"✓ Written":""}
 function count(){let n=0;canvases.forEach(i=>{if(!blank(i.canvas))n++});return n}
-function updateProgress(){
-  const n=count(),p=Math.round(n/62*100);$("progressText").textContent=`${n} / 62 completed`;$("progressBar").style.width=p+"%";
-  if(n===62){$("progressMessage").textContent="✓ All characters completed. You can save your handwriting.";savePack.disabled=false}
-  else{$("progressMessage").textContent=`${62-n} character${62-n===1?"":"s"} remaining.`;savePack.disabled=true}
-}
-function packs(){try{return JSON.parse(localStorage.getItem("handcaption_packs")||"[]")}catch(_){return[]}}
-function writePacks(p){try{localStorage.setItem("handcaption_packs",JSON.stringify(p));return true}catch(_){alert("Browser storage is full. Remove an old handwriting pack.");return false}}
+function updateProgress(){const n=count();$("progressText").textContent=`${n} / 62 completed`;$("progressBar").style.width=(n/62*100)+"%";$("upperCount").textContent=`${U.filter(c=>!blank(canvases.get(c).canvas)).length} / 26`;$("lowerCount").textContent=`${L.filter(c=>!blank(canvases.get(c).canvas)).length} / 26`;$("digitCount").textContent=`${D.filter(c=>!blank(canvases.get(c).canvas)).length} / 10`;if(n===62){$("progressMessage").textContent="✓ All characters completed. You can save or update this pack.";$("savePack").disabled=false}else{$("progressMessage").textContent=`${62-n} character${62-n===1?"":"s"} remaining.`;$("savePack").disabled=true}}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function selectedPack(){return packs().find(p=>p.id===selectedPackId)||null}
+function renderPacks(){const ps=packs();$("savedPacks").innerHTML="";$("packSelect").innerHTML="";if(!ps.length){$("packSelect").innerHTML='<option value="">No saved pack</option>';lockMedia();$("deletePack").disabled=true;return}ps.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.name;$("packSelect").append(o);const item=document.createElement("div");item.className="pack-item"+(p.id===selectedPackId?" selected":"");item.innerHTML=`✍️ ${esc(p.name)}<small>${p.characterCount||62} characters</small>`;const bs=document.createElement("div");bs.className="pack-buttons";const use=document.createElement("button");use.className="primary";use.textContent="Use";use.onclick=()=>selectPack(p.id);const edit=document.createElement("button");edit.className="ghost";edit.textContent="Edit";edit.onclick=()=>loadPack(p.id);const del=document.createElement("button");del.className="danger";del.textContent="Delete";del.onclick=()=>deletePack(p.id);bs.append(use,edit,del);item.append(bs);$("savedPacks").append(item)});if(!selectedPackId||!ps.some(p=>p.id===selectedPackId))selectedPackId=ps[0].id;$("packSelect").value=selectedPackId;localStorage.setItem("handcaption_selected_pack",selectedPackId);$("deletePack").disabled=false;unlockMedia()}
+function selectPack(id){if(!packs().some(p=>p.id===id))return;selectedPackId=id;localStorage.setItem("handcaption_selected_pack",id);$("packSelect").value=id;renderPacks();if(currentMediaType==="image")drawImage();if(currentMediaType==="video")drawVideo()}
+function unlockMedia(){$("mediaSection").classList.remove("locked");$("lockedMessage").classList.add("hidden");$("packSelect").disabled=false;$("chooseMediaButton").disabled=!selectedPackId}
+function lockMedia(){$("mediaSection").classList.add("locked");$("lockedMessage").classList.remove("hidden");$("packSelect").disabled=true;$("chooseMediaButton").disabled=true}
+$("packSelect").onchange=()=>selectPack($("packSelect").value);
+$("savePack").onclick=()=>{if(count()!==62){alert("Write all 62 characters first.");return}const ps=packs(),name=$("packName").value.trim()||"My Handwriting";let p=currentEditingPackId?ps.find(x=>x.id===currentEditingPackId):ps.find(x=>x.name.toLowerCase()===name.toLowerCase());if(!p){p={id:"pack_"+Date.now()+"_"+Math.random().toString(36).slice(2),created:Date.now()};ps.push(p)}p.name=name;p.characterCount=62;p.updated=Date.now();p.glyphs={};canvases.forEach((i,ch)=>p.glyphs[ch]=i.canvas.toDataURL("image/png"));if(savePacks(ps)){currentEditingPackId=p.id;selectedPackId=p.id;localStorage.setItem("handcaption_selected_pack",p.id);renderPacks();alert("✓ Handwriting pack saved.")}}
+$("clearPack").onclick=()=>{if(!confirm("Erase all 62 characters?"))return;canvases.forEach((i,ch)=>{i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height);history.set(ch,{states:[],index:-1});push(ch);update(ch)});currentEditingPackId=null;$("packName").value="My Handwriting";updateProgress();lockMedia()}
+$("newPack").onclick=()=>{canvases.forEach((i,ch)=>{i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height);history.set(ch,{states:[],index:-1});push(ch);update(ch)});currentEditingPackId=null;$("packName").value="New Handwriting";updateProgress();window.scrollTo({top:0,behavior:"smooth"})}
+function loadPack(id){const p=packs().find(x=>x.id===id);if(!p)return;currentEditingPackId=id;$("packName").value=p.name;ALL.forEach(ch=>{const i=canvases.get(ch),ctx=i.canvas.getContext("2d");ctx.clearRect(0,0,i.canvas.width,i.canvas.height);if(p.glyphs?.[ch]){const im=new Image();im.onload=()=>{ctx.drawImage(im,0,0,180,90);history.set(ch,{states:[snap(ch)],index:0});update(ch);updateProgress();buttons(ch)};im.src=p.glyphs[ch]}else{history.set(ch,{states:[snap(ch)],index:0});update(ch)}});window.scrollTo({top:0,behavior:"smooth"})}
+function deletePack(id){const p=packs().find(x=>x.id===id);if(!p||!confirm(`Delete "${p.name}"?`))return;const ps=packs().filter(x=>x.id!==id);savePacks(ps);if(selectedPackId===id)selectedPackId=ps[0]?.id||"";if(currentEditingPackId===id)currentEditingPackId=null;localStorage.setItem("handcaption_selected_pack",selectedPackId);renderPacks()}
+$("deletePack").onclick=()=>{if(selectedPackId)deletePack(selectedPackId)}
 
-function renderPacks(){
-  const ps=packs();savedPacks.innerHTML="";packSelect.innerHTML="";
-  if(!ps.length){packSelect.innerHTML='<option value="">No saved pack</option>';savedPacks.innerHTML='<div class="hint">No handwriting pack saved yet.</div>';lockMedia();return}
-  ps.forEach((p,i)=>{
-    if(!p.id){p.id="pack_"+(p.created||Date.now())+"_"+i}
-    const opt=document.createElement("option");opt.value=p.id;opt.textContent=p.name;packSelect.appendChild(opt);
-    const item=document.createElement("div");item.className="pack-item"+(p.id===selectedPackId?" selected":"");item.textContent="✍️ "+p.name;
-    const small=document.createElement("small");small.textContent="62 characters";item.appendChild(small);
-    item.onclick=()=>selectPack(p.id);
-    savedPacks.appendChild(item);
-  });
-  // Persist IDs for old V2 packs.
-  writePacks(ps);
-  if(!selectedPackId||!ps.some(p=>p.id===selectedPackId))selectedPackId=ps[0].id;
-  packSelect.value=selectedPackId;localStorage.setItem("handcaption_selected_pack",selectedPackId);
-  $("selectedPackName") && ($("selectedPackName").textContent=selectedPack().name);
-  unlockMedia();
-}
-function selectPack(id){
-  const p=packs().find(x=>x.id===id);if(!p)return;
-  selectedPackId=id;localStorage.setItem("handcaption_selected_pack",id);packSelect.value=id;renderPacks();
-  if(currentMediaType==="image")drawImageCaption();if(currentMediaType==="video")drawVideoOverlay();
-}
-packSelect.onchange=()=>selectPack(packSelect.value);
-
-function unlockMedia(){mediaSection.classList.remove("locked");lockedMessage.classList.add("hidden");packSelect.disabled=false;chooseMediaButton.disabled=!selectedPackId}
-function lockMedia(){mediaSection.classList.add("locked");lockedMessage.classList.remove("hidden");packSelect.disabled=true;chooseMediaButton.disabled=true}
-$("savePack").onclick=()=>{
-  if(count()!==62){alert("Write all 62 characters first.");return}
-  const glyphs={};canvases.forEach((i,ch)=>glyphs[ch]=i.canvas.toDataURL("image/png"));
-  const name=$("packName").value.trim()||"My Handwriting";const ps=packs();
-  let p=ps.find(x=>x.name.toLowerCase()===name.toLowerCase());
-  if(!p){p={id:"pack_"+Date.now()+"_"+Math.random().toString(36).slice(2),created:Date.now()};ps.push(p)}
-  p.name=name;p.glyphs=glyphs;p.characterCount=62;p.updated=Date.now();
-  if(writePacks(ps)){selectedPackId=p.id;localStorage.setItem("handcaption_selected_pack",p.id);renderPacks();alert("✓ Handwriting saved and selected.")}
-};
-$("clearPack").onclick=()=>{if(!confirm("Erase all 62 characters and start again?"))return;canvases.forEach(i=>i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height));updateProgress();lockMedia()};
-
-chooseMediaButton.onclick=()=>{if(!selectedPackId){alert("Select or save a handwriting pack first.");return}mediaInput.click()};
-
-mediaInput.onchange=e=>{
-  const f=e.target.files?.[0];if(!f)return;
-  if(currentVideoURL){URL.revokeObjectURL(currentVideoURL);currentVideoURL=null}
-  textLayer=null;editorWrap.classList.remove("hidden");
-  if(f.type.startsWith("image/")){
-    currentMediaType="image";$("mediaType").textContent="PHOTO";imageEditor.classList.remove("hidden");videoEditor.classList.add("hidden");
-    const img=new Image();img.onload=()=>{baseImage=img;fitImage()};img.onerror=()=>alert("Could not open this image.");img.src=URL.createObjectURL(f);
-  }else if(f.type.startsWith("video/")){
-    currentMediaType="video";$("mediaType").textContent="VIDEO";imageEditor.classList.add("hidden");videoEditor.classList.remove("hidden");
-    currentVideoURL=URL.createObjectURL(f);videoPreview.src=currentVideoURL;videoPreview.load();
-    videoPreview.onloadedmetadata=()=>{videoOverlay.width=videoPreview.videoWidth;videoOverlay.height=videoPreview.videoHeight};
-  }else alert("Choose a photo or video.");
-  mediaInput.value="";
-};
-function fitImage(){const s=Math.min(1000/baseImage.width,700/baseImage.height,1);editorCanvas.width=Math.round(baseImage.width*s);editorCanvas.height=Math.round(baseImage.height*s);drawImageCaption()}
+$("chooseMediaButton").onclick=()=>{if(selectedPackId)$("mediaInput").click()}
+$("mediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;if(currentVideoURL)URL.revokeObjectURL(currentVideoURL);textLayer=null;$("editorWrap").classList.remove("hidden");if(f.type.startsWith("image/")){currentMediaType="image";$("mediaType").textContent="PHOTO";$("imageEditor").classList.remove("hidden");$("videoEditor").classList.add("hidden");const im=new Image();im.onload=()=>{baseImage=im;fitImage()};im.src=URL.createObjectURL(f)}else if(f.type.startsWith("video/")){currentMediaType="video";$("mediaType").textContent="VIDEO";$("imageEditor").classList.add("hidden");$("videoEditor").classList.remove("hidden");currentVideoURL=URL.createObjectURL(f);$("videoPreview").src=currentVideoURL;$("videoPreview").load();$("videoPreview").onloadedmetadata=()=>{$("videoOverlay").width=$("videoPreview").videoWidth;$("videoOverlay").height=$("videoPreview").videoHeight}}else alert("Choose a photo or video.");$("mediaInput").value=""}
+function fitImage(){const s=Math.min(1000/baseImage.width,700/baseImage.height,1);$("editorCanvas").width=Math.round(baseImage.width*s);$("editorCanvas").height=Math.round(baseImage.height*s);drawImage()}
 function glyph(src){if(glyphCache.has(src))return Promise.resolve(glyphCache.get(src));return new Promise((res,rej)=>{const im=new Image();im.onload=()=>{glyphCache.set(src,im);res(im)};im.onerror=rej;im.src=src})}
-async function drawImageCaption(){
-  if(!baseImage)return;ectx.clearRect(0,0,editorCanvas.width,editorCanvas.height);ectx.drawImage(baseImage,0,0,editorCanvas.width,editorCanvas.height);
-  if(!textLayer)return;const p=selectedPack();if(!p)return;const size=+$("sizeInput").value;let x=textLayer.x,y=textLayer.y;
-  for(const ch of textLayer.text){if(p.glyphs[ch]){try{const im=await glyph(p.glyphs[ch]),s=size/90,w=180*s,h=90*s;ectx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ectx.fillStyle=textLayer.color;ectx.font=`${size}px cursive`;ectx.fillText(ch,x,y);x+=ectx.measureText(ch).width+size*.08}}
-}
-$("addCaption").onclick=()=>{
-  const text=$("captionInput").value;if(!selectedPackId){alert("Select a handwriting pack.");return}if(!text.trim()){alert("Type a caption.");return}
-  textLayer={text,x:30,y:currentMediaType==="image"?editorCanvas.height*.82:videoOverlay.height*.82,color:$("colorInput").value};
-  if(currentMediaType==="image")drawImageCaption();else drawVideoOverlay();
-};
+async function drawImage(){if(!baseImage)return;const c=$("editorCanvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(baseImage,0,0,c.width,c.height);if(!textLayer)return;const p=selectedPack();if(!p)return;let x=textLayer.x,y=textLayer.y,s=+$("sizeInput").value;for(const ch of textLayer.text){if(p.glyphs?.[ch]){try{const im=await glyph(p.glyphs[ch]),k=s/90,w=180*k,h=90*k;ctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ctx.fillStyle=textLayer.color;ctx.font=`${s}px cursive`;ctx.fillText(ch,x,y);x+=ctx.measureText(ch).width+s*.08}}}
+$("addCaption").onclick=()=>{const t=$("captionInput").value;if(!selectedPackId){alert("Select a handwriting pack.");return}if(!t.trim()){alert("Type a caption.");return}textLayer={text:t,x:30,y:currentMediaType==="image"?$("editorCanvas").height*.82:$("videoOverlay").height*.82,color:$("colorInput").value};currentMediaType==="image"?drawImage():drawVideo()}
 function point(c,e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}}
-editorCanvas.onpointerdown=e=>{if(!textLayer)return;const p=point(editorCanvas,e),s=+$("sizeInput").value;if(p.y>textLayer.y-s*1.2&&p.y<textLayer.y+40){dragging=true;dragOffset={x:p.x-textLayer.x,y:p.y-textLayer.y};try{editorCanvas.setPointerCapture(e.pointerId)}catch(_){}}};
-editorCanvas.onpointermove=e=>{if(!dragging)return;const p=point(editorCanvas,e);textLayer.x=p.x-dragOffset.x;textLayer.y=p.y-dragOffset.y;drawImageCaption()};
-editorCanvas.onpointerup=()=>dragging=false;editorCanvas.onpointercancel=()=>dragging=false;
-$("sizeInput").oninput=()=>currentMediaType==="image"?drawImageCaption():drawVideoOverlay();
-$("colorInput").oninput=()=>{if(textLayer)textLayer.color=$("colorInput").value;currentMediaType==="image"?drawImageCaption():drawVideoOverlay()};
-$("captionInput").oninput=()=>{if(textLayer){textLayer.text=$("captionInput").value;currentMediaType==="image"?drawImageCaption():drawVideoOverlay()}};
-
-async function drawVideoOverlay(){
-  if(!videoOverlay.width||!textLayer)return;voctx.clearRect(0,0,videoOverlay.width,videoOverlay.height);const p=selectedPack();if(!p)return;
-  const size=+$("sizeInput").value*(videoOverlay.width/1000);let x=textLayer.x,y=textLayer.y;
-  for(const ch of textLayer.text){if(p.glyphs[ch]){try{const im=await glyph(p.glyphs[ch]),s=size/90,w=180*s,h=90*s;voctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{voctx.fillStyle=textLayer.color;voctx.font=`${size}px cursive`;voctx.fillText(ch,x,y);x+=voctx.measureText(ch).width+size*.08}}
-}
-videoPreview.onplay=()=>drawVideoOverlay();
-videoPreview.ontimeupdate=()=>drawVideoOverlay();
-$("exportBtn").onclick=async()=>{if(currentMediaType!=="image"){alert("Video export is the next step. The video and handwriting overlay are working locally.");return}await drawImageCaption();const a=document.createElement("a");a.download="handcaption.png";a.href=editorCanvas.toDataURL("image/png",1);a.click()};
-
-// IMPORTANT: Existing saved packs are usable immediately after page reload.
-// We do not require rewriting all 62 characters if a complete pack already exists.
-function startup(){
-  const ps=packs();
-  if(ps.length){
-    selectedPackId=localStorage.getItem("handcaption_selected_pack")||ps[0].id;
-    renderPacks();
-  }else{
-    lockMedia();
-  }
-  updateProgress();
-}
-startup();
-  
+$("editorCanvas").onpointerdown=e=>{if(!textLayer)return;const p=point($("editorCanvas"),e),s=+$("sizeInput").value;if(p.y>textLayer.y-s*1.2&&p.y<textLayer.y+40){dragging=true;dragOffset={x:p.x-textLayer.x,y:p.y-textLayer.y}}};$("editorCanvas").onpointermove=e=>{if(!dragging)return;const p=point($("editorCanvas"),e);textLayer.x=p.x-dragOffset.x;textLayer.y=p.y-dragOffset.y;drawImage()};$("editorCanvas").onpointerup=()=>dragging=false;$("editorCanvas").onpointercancel=()=>dragging=false;
+$("sizeInput").oninput=()=>currentMediaType==="image"?drawImage():drawVideo();$("colorInput").oninput=()=>{if(textLayer)textLayer.color=$("colorInput").value;currentMediaType==="image"?drawImage():drawVideo()};$("captionInput").oninput=()=>{if(textLayer){textLayer.text=$("captionInput").value;currentMediaType==="image"?drawImage():drawVideo()}}
+async function drawVideo(){const c=$("videoOverlay");if(!c.width||!textLayer)return;const ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const p=selectedPack();if(!p)return;let x=textLayer.x,y=textLayer.y,s=+$("sizeInput").value*(c.width/1000);for(const ch of textLayer.text){if(p.glyphs?.[ch]){try{const im=await glyph(p.glyphs[ch]),k=s/90,w=180*k,h=90*k;ctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ctx.fillStyle=textLayer.color;ctx.font=`${s}px cursive`;ctx.fillText(ch,x,y);x+=ctx.measureText(ch).width+s*.08}}}
+$("videoPreview").ontimeupdate=drawVideo;$("exportBtn").onclick=async()=>{if(currentMediaType!=="image"){alert("Video export is the next feature.");return}await drawImage();const a=document.createElement("a");a.download="handcaption.png";a.href=$("editorCanvas").toDataURL("image/png",1);a.click()}
+function startup(){const ps=packs();if(ps.length){if(!selectedPackId||!ps.some(p=>p.id===selectedPackId))selectedPackId=ps[0].id;localStorage.setItem("handcaption_selected_pack",selectedPackId);renderPacks()}else lockMedia();updateProgress()}startup();
