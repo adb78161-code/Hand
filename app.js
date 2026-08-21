@@ -1,5 +1,12 @@
 // @ts-nocheck
 const U=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"],L=[..."abcdefghijklmnopqrstuvwxyz"],D=[..."0123456789"],ALL=[...U,...L,...D];
+
+const HC_SECURITY=Object.freeze({
+  MAX_PACKS:20, MAX_PACK_NAME:30, MAX_CAPTION:200,
+  MAX_IMAGE_BYTES:15*1024*1024, MAX_VIDEO_BYTES:100*1024*1024,
+  IMAGE_TYPES:Object.freeze(["image/jpeg","image/png","image/webp"]),
+  VIDEO_TYPES:Object.freeze(["video/mp4","video/webm","video/quicktime"])
+});
 const $=id=>document.getElementById(id), canvases=new Map(),history=new Map(),glyphCache=new Map();
 let selectedPackId=localStorage.getItem("handcaption_selected_pack")||"",currentEditingPackId=null,currentMediaType=null,baseImage=null,currentVideoURL=null,textLayer=null,dragging=false,dragOffset={x:0,y:0};
 function oldPacks(){try{return JSON.parse(localStorage.getItem("handcaption_packs")||"[]")}catch(_){return[]}}
@@ -21,12 +28,47 @@ function count(){let n=0;canvases.forEach(i=>{if(!blank(i.canvas))n++});return n
 function updateProgress(){const n=count();$("progressText").textContent=`${n} / 62 completed`;$("progressBar").style.width=(n/62*100)+"%";$("upperCount").textContent=`${U.filter(c=>!blank(canvases.get(c).canvas)).length} / 26`;$("lowerCount").textContent=`${L.filter(c=>!blank(canvases.get(c).canvas)).length} / 26`;$("digitCount").textContent=`${D.filter(c=>!blank(canvases.get(c).canvas)).length} / 10`;if(n===62){$("progressMessage").textContent="✓ All characters completed. You can save or update this pack.";$("savePack").disabled=false}else{$("progressMessage").textContent=`${62-n} character${62-n===1?"":"s"} remaining.`;$("savePack").disabled=true}}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function selectedPack(){return packs().find(p=>p.id===selectedPackId)||null}
-function renderPacks(){const ps=packs();$("savedPacks").innerHTML="";$("packSelect").innerHTML="";if(!ps.length){$("packSelect").innerHTML='<option value="">No saved pack</option>';lockMedia();$("deletePack").disabled=true;return}ps.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.name;$("packSelect").append(o);const item=document.createElement("div");item.className="pack-item"+(p.id===selectedPackId?" selected":"");item.innerHTML=`✍️ ${esc(p.name)}<small>${p.characterCount||62} characters</small>`;const bs=document.createElement("div");bs.className="pack-buttons";const use=document.createElement("button");use.className="primary";use.textContent="Use";use.onclick=()=>selectPack(p.id);const edit=document.createElement("button");edit.className="ghost";edit.textContent="Edit";edit.onclick=()=>loadPack(p.id);const del=document.createElement("button");del.className="danger";del.textContent="Delete";del.onclick=()=>deletePack(p.id);bs.append(use,edit,del);item.append(bs);$("savedPacks").append(item)});if(!selectedPackId||!ps.some(p=>p.id===selectedPackId))selectedPackId=ps[0].id;$("packSelect").value=selectedPackId;localStorage.setItem("handcaption_selected_pack",selectedPackId);$("deletePack").disabled=false;unlockMedia()}
+function renderPacks(){
+  const ps=packs();
+  $("savedPacks").replaceChildren();
+  $("packSelect").replaceChildren();
+  if(!ps.length){
+    const opt=document.createElement("option");
+    opt.value=""; opt.textContent="No saved pack";
+    $("packSelect").append(opt);
+    $("deletePack").disabled=true; lockMedia(); return;
+  }
+  ps.forEach(p=>{
+    const opt=document.createElement("option");
+    opt.value=p.id; opt.textContent=p.name; $("packSelect").append(opt);
+
+    const item=document.createElement("div");
+    item.className="pack-item"+(p.id===selectedPackId?" selected":"");
+    const small=document.createElement("small");
+    small.textContent="62 characters";
+    item.append(document.createTextNode("✍️ "+p.name),small);
+
+    const buttons=document.createElement("div");
+    buttons.className="pack-buttons";
+    [["Use","primary",()=>selectPack(p.id)],
+     ["Edit","ghost",()=>loadPack(p.id)],
+     ["Delete","danger",()=>deletePack(p.id)]].forEach(([text,cls,fn])=>{
+       const b=document.createElement("button");
+       b.textContent=text; b.className=cls; b.onclick=fn; buttons.append(b);
+     });
+    item.append(buttons);
+    $("savedPacks").append(item);
+  });
+  if(!selectedPackId || !ps.some(p=>p.id===selectedPackId)) selectedPackId=ps[0].id;
+  localStorage.setItem("handcaption_selected_pack",selectedPackId);
+  $("packSelect").value=selectedPackId;
+  $("deletePack").disabled=false; unlockMedia();
+}
 function selectPack(id){if(!packs().some(p=>p.id===id))return;selectedPackId=id;localStorage.setItem("handcaption_selected_pack",id);$("packSelect").value=id;renderPacks();if(currentMediaType==="image")drawImage();if(currentMediaType==="video")drawVideo()}
 function unlockMedia(){$("mediaSection").classList.remove("locked");$("lockedMessage").classList.add("hidden");$("packSelect").disabled=false;$("chooseMediaButton").disabled=!selectedPackId}
 function lockMedia(){$("mediaSection").classList.add("locked");$("lockedMessage").classList.remove("hidden");$("packSelect").disabled=true;$("chooseMediaButton").disabled=true}
 $("packSelect").onchange=()=>selectPack($("packSelect").value);
-$("savePack").onclick=()=>{if(count()!==62){alert("Write all 62 characters first.");return}const ps=packs(),name=$("packName").value.trim()||"My Handwriting";let p=currentEditingPackId?ps.find(x=>x.id===currentEditingPackId):ps.find(x=>x.name.toLowerCase()===name.toLowerCase());if(!p){p={id:"pack_"+Date.now()+"_"+Math.random().toString(36).slice(2),created:Date.now()};ps.push(p)}p.name=name;p.characterCount=62;p.updated=Date.now();p.glyphs={};canvases.forEach((i,ch)=>p.glyphs[ch]=i.canvas.toDataURL("image/png"));if(savePacks(ps)){currentEditingPackId=p.id;selectedPackId=p.id;localStorage.setItem("handcaption_selected_pack",p.id);renderPacks();alert("✓ Handwriting pack saved.")}}
+$("savePack").onclick=()=>{if(count()!==62){alert("Write all 62 characters first.");return}const ps=packs(),name=$("packName").value.replace(/[<>]/g,"").trim().slice(0,HC_SECURITY.MAX_PACK_NAME)||"My Handwriting";let p=currentEditingPackId?ps.find(x=>x.id===currentEditingPackId):ps.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ps.length>=HC_SECURITY.MAX_PACKS){alert("You can keep up to 20 handwriting packs.");return}if(!p){p={id:"pack_"+Date.now()+"_"+Math.random().toString(36).slice(2),created:Date.now()};ps.push(p)}p.name=name;p.characterCount=62;p.updated=Date.now();p.glyphs={};canvases.forEach((i,ch)=>p.glyphs[ch]=i.canvas.toDataURL("image/png"));if(savePacks(ps)){currentEditingPackId=p.id;selectedPackId=p.id;localStorage.setItem("handcaption_selected_pack",p.id);renderPacks();alert("✓ Handwriting pack saved.")}}
 $("clearPack").onclick=()=>{if(!confirm("Erase all 62 characters?"))return;canvases.forEach((i,ch)=>{i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height);history.set(ch,{states:[],index:-1});push(ch);update(ch)});currentEditingPackId=null;$("packName").value="My Handwriting";updateProgress();lockMedia()}
 $("newPack").onclick=()=>{canvases.forEach((i,ch)=>{i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height);history.set(ch,{states:[],index:-1});push(ch);update(ch)});currentEditingPackId=null;$("packName").value="New Handwriting";updateProgress();window.scrollTo({top:0,behavior:"smooth"})}
 function loadPack(id){const p=packs().find(x=>x.id===id);if(!p)return;currentEditingPackId=id;$("packName").value=p.name;ALL.forEach(ch=>{const i=canvases.get(ch),ctx=i.canvas.getContext("2d");ctx.clearRect(0,0,i.canvas.width,i.canvas.height);if(p.glyphs?.[ch]){const im=new Image();im.onload=()=>{ctx.drawImage(im,0,0,180,90);history.set(ch,{states:[snap(ch)],index:0});update(ch);updateProgress();buttons(ch)};im.src=p.glyphs[ch]}else{history.set(ch,{states:[snap(ch)],index:0});update(ch)}});window.scrollTo({top:0,behavior:"smooth"})}
@@ -38,10 +80,12 @@ $("mediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;if(current
 function fitImage(){const s=Math.min(1000/baseImage.width,700/baseImage.height,1);$("editorCanvas").width=Math.round(baseImage.width*s);$("editorCanvas").height=Math.round(baseImage.height*s);drawImage()}
 function glyph(src){if(glyphCache.has(src))return Promise.resolve(glyphCache.get(src));return new Promise((res,rej)=>{const im=new Image();im.onload=()=>{glyphCache.set(src,im);res(im)};im.onerror=rej;im.src=src})}
 async function drawImage(){if(!baseImage)return;const c=$("editorCanvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(baseImage,0,0,c.width,c.height);if(!textLayer)return;const p=selectedPack();if(!p)return;let x=textLayer.x,y=textLayer.y,s=+$("sizeInput").value;for(const ch of textLayer.text){if(p.glyphs?.[ch]){try{const im=await glyph(p.glyphs[ch]),k=s/90,w=180*k,h=90*k;ctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ctx.fillStyle=textLayer.color;ctx.font=`${s}px cursive`;ctx.fillText(ch,x,y);x+=ctx.measureText(ch).width+s*.08}}}
-$("addCaption").onclick=()=>{const t=$("captionInput").value;if(!selectedPackId){alert("Select a handwriting pack.");return}if(!t.trim()){alert("Type a caption.");return}textLayer={text:t,x:30,y:currentMediaType==="image"?$("editorCanvas").height*.82:$("videoOverlay").height*.82,color:$("colorInput").value};currentMediaType==="image"?drawImage():drawVideo()}
+$("addCaption").onclick=()=>{const t=$("captionInput").value.slice(0,HC_SECURITY.MAX_CAPTION);if(!selectedPackId){alert("Select a handwriting pack.");return}if(!t.trim()){alert("Type a caption.");return}textLayer={text:t,x:30,y:currentMediaType==="image"?$("editorCanvas").height*.82:$("videoOverlay").height*.82,color:$("colorInput").value};currentMediaType==="image"?drawImage():drawVideo()}
 function point(c,e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}}
 $("editorCanvas").onpointerdown=e=>{if(!textLayer)return;const p=point($("editorCanvas"),e),s=+$("sizeInput").value;if(p.y>textLayer.y-s*1.2&&p.y<textLayer.y+40){dragging=true;dragOffset={x:p.x-textLayer.x,y:p.y-textLayer.y}}};$("editorCanvas").onpointermove=e=>{if(!dragging)return;const p=point($("editorCanvas"),e);textLayer.x=p.x-dragOffset.x;textLayer.y=p.y-dragOffset.y;drawImage()};$("editorCanvas").onpointerup=()=>dragging=false;$("editorCanvas").onpointercancel=()=>dragging=false;
 $("sizeInput").oninput=()=>currentMediaType==="image"?drawImage():drawVideo();$("colorInput").oninput=()=>{if(textLayer)textLayer.color=$("colorInput").value;currentMediaType==="image"?drawImage():drawVideo()};$("captionInput").oninput=()=>{if(textLayer){textLayer.text=$("captionInput").value;currentMediaType==="image"?drawImage():drawVideo()}}
 async function drawVideo(){const c=$("videoOverlay");if(!c.width||!textLayer)return;const ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const p=selectedPack();if(!p)return;let x=textLayer.x,y=textLayer.y,s=+$("sizeInput").value*(c.width/1000);for(const ch of textLayer.text){if(p.glyphs?.[ch]){try{const im=await glyph(p.glyphs[ch]),k=s/90,w=180*k,h=90*k;ctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ctx.fillStyle=textLayer.color;ctx.font=`${s}px cursive`;ctx.fillText(ch,x,y);x+=ctx.measureText(ch).width+s*.08}}}
 $("videoPreview").ontimeupdate=drawVideo;$("exportBtn").onclick=async()=>{if(currentMediaType!=="image"){alert("Video export is the next feature.");return}await drawImage();const a=document.createElement("a");a.download="handcaption.png";a.href=$("editorCanvas").toDataURL("image/png",1);a.click()}
 function startup(){const ps=packs();if(ps.length){if(!selectedPackId||!ps.some(p=>p.id===selectedPackId))selectedPackId=ps[0].id;localStorage.setItem("handcaption_selected_pack",selectedPackId);renderPacks()}else lockMedia();updateProgress()}startup();
+
+window.addEventListener("pagehide",()=>{if(currentVideoURL){URL.revokeObjectURL(currentVideoURL);currentVideoURL=null;}});
