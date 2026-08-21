@@ -1,0 +1,77 @@
+<!doctype html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data:; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob: data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests"><title>HandCaption</title><link rel="stylesheet" href="style.css">
+</head><body>
+<header class="topbar"><div class="brand">✍️ HandCaption</div><div class="tagline">Your handwriting. Your captions.</div></header>
+<main>
+<section class="hero card"><div><div class="step">HANDCAPTION</div><h1>Your handwriting, anywhere.</h1><p>Create a handwriting pack once, then use it on photos and videos.</p></div><div class="hero-badge">100% Free • No login</div></section>
+
+<section class="card"><div class="step">STEP 1</div><h2>Create your handwriting</h2>
+<p>Write 62 characters one at a time with a faint guide. You can go back and rewrite any character.</p>
+<div class="pack-row"><label>Pack name<input id="packName" value="My Handwriting" maxlength="30"></label>
+<button id="savePack" class="primary" disabled>Save / update pack</button><button id="clearPack" class="ghost">Clear all</button></div>
+<div class="progress-box"><div class="progress-text"><strong id="progressText">0 / 62 completed</strong><span id="progressMessage">Write every character to continue.</span></div><div class="progress-track"><div id="progressBar"></div></div></div>
+
+<div class="guided-writing">
+  <div class="writing-head">
+    <div>
+      <div class="step">ONE CHARACTER AT A TIME</div>
+      <div id="currentChar" class="current-char">A</div>
+    </div>
+    <div class="writing-counter">
+      <strong id="charProgress">1 / 62</strong>
+      <span id="charStatus">Not written</span>
+    </div>
+  </div>
+
+  <div class="writing-progress"><div id="writingProgressBar"></div></div>
+
+  <div class="writing-board">
+    <div id="guideChar" class="guide-char">A</div>
+    <canvas id="writingCanvas" width="900" height="520"></canvas>
+  </div>
+
+  <p class="writing-tip">Write the whole character naturally, using as many strokes as you need. Lift your finger whenever you need; the drawing stays on the board. Tap Next only when the character is complete.</p>
+
+  <div class="writing-actions">
+    <button id="backChar" class="ghost" type="button" disabled>← Back</button>
+    <button id="redrawChar" class="ghost" type="button">Redraw</button>
+    <button id="nextChar" class="primary" type="button" disabled>Next →</button>
+  </div>
+
+  <div id="characterChecklist" class="character-checklist"></div>
+</div>
+<div class="hint">Your handwriting stays on this device. It is not uploaded to a server.</div></section>
+
+<section class="card"><div class="step">MY PACKS</div><h2>Saved handwriting</h2>
+<div class="pack-actions"><button id="newPack" class="ghost">＋ New pack</button><button id="deletePack" class="danger" disabled>Delete selected</button></div>
+<div id="savedPacks" class="saved-packs"></div></section>
+
+<section id="mediaSection" class="card locked"><div class="step">STEP 2</div><h2>Add your photo or video</h2>
+<div class="security-note">🔒 Photos and videos are processed locally on your device. HandCaption does not upload them.</div><div id="lockedMessage" class="locked-message">🔒 Select a complete handwriting pack before uploading media.</div>
+<div class="pack-selector"><label>Use handwriting pack<select id="packSelect" disabled><option value="">No pack selected</option></select></label></div>
+<button id="chooseMediaButton" class="upload-button" disabled>＋ Choose photo or video</button><input id="mediaInput" type="file" accept="image/*,video/*" hidden>
+<div id="editorWrap" class="editor-wrap hidden"><div id="mediaType" class="media-type"></div>
+<div class="toolbar">
+<input id="captionInput" placeholder="Type your caption..." maxlength="200">
+<label>Size<input id="sizeInput" type="range" min="18" max="180" value="54"></label>
+<label>Color<input id="colorInput" type="color" value="#ffffff"></label>
+<label>Rotation<input id="rotationInput" type="range" min="-180" max="180" value="0"></label>
+<label>Animation<select id="animationInput">
+<option value="none">None</option>
+<option value="fade">Fade</option>
+<option value="slide">Slide</option>
+<option value="pop">Pop</option>
+<option value="write">Write-on</option>
+</select></label>
+<label>Duration<input id="durationInput" type="range" min="0.2" max="5" step="0.1" value="1.2"></label>
+<button id="addCaption" class="primary" type="button">Add / update caption</button>
+<button id="deleteCaption" class="danger" type="button">Delete caption</button>
+<button id="addMediaButton" class="ghost" type="button">＋ Add file</button>
+<button id="exportBtn" class="success" type="button">Export</button>
+</div>
+<div id="captionLayers" class="caption-layers"></div>
+<div class="editor-file-actions"><button id="removeMedia" class="danger" type="button">🗑 Delete current file</button></div>
+<div id="imageEditor" class="canvas-holder hidden"><canvas id="editorCanvas"></canvas></div>
+<div id="videoEditor" class="video-holder hidden"><video id="videoPreview" controls playsinline></video><canvas id="videoOverlay"></canvas><div class="video-note">Video preview and supported local export run in your browser. MP4 is not guaranteed on Android browsers.</div></div></div>
+</section></main><footer>Free • No login • Private by design</footer><script src="app.js"></script></body></html>
