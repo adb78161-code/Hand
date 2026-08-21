@@ -1,91 +1,919 @@
 // @ts-nocheck
-const U=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"],L=[..."abcdefghijklmnopqrstuvwxyz"],D=[..."0123456789"],ALL=[...U,...L,...D];
+// HandCaption V9
+// Browser-only / local processing. No media is uploaded to a server.
+"use strict";
+
+const U=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+const L=[..."abcdefghijklmnopqrstuvwxyz"];
+const D=[..."0123456789"];
+const ALL=[...U,...L,...D];
 
 const HC_SECURITY=Object.freeze({
-  MAX_PACKS:20, MAX_PACK_NAME:30, MAX_CAPTION:200,
-  MAX_IMAGE_BYTES:15*1024*1024, MAX_VIDEO_BYTES:100*1024*1024,
+  MAX_PACKS:20,
+  MAX_PACK_NAME:30,
+  MAX_CAPTION:200,
+  MAX_IMAGE_BYTES:15*1024*1024,
+  MAX_VIDEO_BYTES:100*1024*1024,
   IMAGE_TYPES:Object.freeze(["image/jpeg","image/png","image/webp"]),
   VIDEO_TYPES:Object.freeze(["video/mp4","video/webm","video/quicktime"])
 });
-const $=id=>document.getElementById(id), canvases=new Map(),history=new Map(),glyphCache=new Map();
-let selectedPackId=localStorage.getItem("handcaption_selected_pack")||"",currentEditingPackId=null,currentMediaType=null,baseImage=null,currentVideoURL=null,textLayer=null,dragging=false,dragOffset={x:0,y:0};
-function oldPacks(){try{return JSON.parse(localStorage.getItem("handcaption_packs")||"[]")}catch(_){return[]}}
-function packs(){try{let p=JSON.parse(localStorage.getItem("handcaption_packs_v5")||"null");if(Array.isArray(p))return p}catch(_){}let p=oldPacks().map((x,i)=>({...x,id:x.id||"pack_"+(x.created||Date.now())+"_"+i}));if(p.length)localStorage.setItem("handcaption_packs_v5",JSON.stringify(p));return p}
-function savePacks(p){try{localStorage.setItem("handcaption_packs_v5",JSON.stringify(p));return true}catch(_){alert("Storage is full. Delete an old pack.");return false}}
-function blank(c){const d=c.getContext("2d",{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;for(let i=3;i<d.length;i+=4)if(d[i]>0)return false;return true}
-function snap(ch){return canvases.get(ch).canvas.toDataURL("image/png")}
-function push(ch){const h=history.get(ch),s=snap(ch);if(h.states[h.index]!==s){h.states=h.states.slice(0,h.index+1);h.states.push(s);h.index=h.states.length-1}buttons(ch)}
-function buttons(ch){const i=canvases.get(ch),h=history.get(ch);i.undo.disabled=h.index<=0;i.redo.disabled=h.index>=h.states.length-1}
-function restore(ch,dir){const h=history.get(ch),n=h.index+dir;if(n<0||n>=h.states.length)return;h.index=n;const im=new Image();im.onload=()=>{const i=canvases.get(ch),c=i.canvas,ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(im,0,0);update(ch);updateProgress();buttons(ch)};im.src=h.states[h.index]}
-function addChar(ch,parent){const card=document.createElement("div"),title=document.createElement("div"),c=document.createElement("canvas");card.className="char-card";title.className="char-title";title.textContent=ch;c.className="char-canvas";c.width=180;c.height=90;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.lineCap="round";ctx.lineJoin="round";ctx.lineWidth=4;ctx.strokeStyle="#111";let drawing=false;
-const pos=e=>{const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}};c.onpointerdown=e=>{e.preventDefault();drawing=true;try{c.setPointerCapture(e.pointerId)}catch(_){}const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};c.onpointermove=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};const stop=e=>{drawing=false;try{c.releasePointerCapture(e.pointerId)}catch(_){}push(ch);update(ch);updateProgress()};c.onpointerup=stop;c.onpointercancel=stop;
-const actions=document.createElement("div");actions.className="char-actions";const undo=document.createElement("button"),redo=document.createElement("button");undo.className=redo.className="ghost";undo.textContent="Undo";redo.textContent="Redo";undo.onclick=()=>restore(ch,-1);redo.onclick=()=>restore(ch,1);actions.append(undo,redo);
-const actions2=document.createElement("div");actions2.className="char-actions";const erase=document.createElement("button");erase.className="ghost";erase.textContent="Erase";erase.onclick=()=>{ctx.clearRect(0,0,c.width,c.height);push(ch);update(ch);updateProgress()};actions2.append(erase);
-const status=document.createElement("div");status.className="completed-label";card.append(title,c,actions,actions2,status);parent.append(card);canvases.set(ch,{canvas:c,card,status,undo,redo});history.set(ch,{states:[],index:-1});push(ch)}
-U.forEach(c=>addChar(c,$("uppercaseGrid")));L.forEach(c=>addChar(c,$("lowercaseGrid")));D.forEach(c=>addChar(c,$("digitsGrid")));
-function update(ch){const i=canvases.get(ch),d=!blank(i.canvas);i.card.classList.toggle("completed",d);i.status.textContent=d?"✓ Written":""}
-function count(){let n=0;canvases.forEach(i=>{if(!blank(i.canvas))n++});return n}
-function updateProgress(){const n=count();$("progressText").textContent=`${n} / 62 completed`;$("progressBar").style.width=(n/62*100)+"%";$("upperCount").textContent=`${U.filter(c=>!blank(canvases.get(c).canvas)).length} / 26`;$("lowerCount").textContent=`${L.filter(c=>!blank(canvases.get(c).canvas)).length} / 26`;$("digitCount").textContent=`${D.filter(c=>!blank(canvases.get(c).canvas)).length} / 10`;if(n===62){$("progressMessage").textContent="✓ All characters completed. You can save or update this pack.";$("savePack").disabled=false}else{$("progressMessage").textContent=`${62-n} character${62-n===1?"":"s"} remaining.`;$("savePack").disabled=true}}
-function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
-function selectedPack(){return packs().find(p=>p.id===selectedPackId)||null}
+
+const $=id=>document.getElementById(id);
+
+let selectedPackId=localStorage.getItem("handcaption_selected_pack")||"";
+let currentEditingPackId=null;
+let currentMediaType=null;
+let baseImage=null;
+let currentVideoURL=null;
+let currentImageURL=null;
+let dragging=false;
+let dragOffset={x:0,y:0};
+
+const glyphs=Object.create(null);
+const writingHistory=new Map();
+let currentCharIndex=0;
+let writing=false;
+
+let captions=[];
+let activeCaptionId=null;
+let historyStates=[];
+let historyIndex=-1;
+
+const writingCanvas=$("writingCanvas");
+const wctx=writingCanvas.getContext("2d",{willReadFrequently:true});
+
+function safeArray(raw){
+  try{const v=JSON.parse(raw||"[]");return Array.isArray(v)?v:[]}
+  catch(_){return[]}
+}
+
+function normalizePack(p,index){
+  if(!p||typeof p!=="object"||!p.glyphs||typeof p.glyphs!=="object")return null;
+  const id=String(p.id||("pack_"+(p.created||Date.now())+"_"+index)).slice(0,100);
+  const name=String(p.name||"My Handwriting").replace(/[<>]/g,"").trim().slice(0,HC_SECURITY.MAX_PACK_NAME)||"My Handwriting";
+  const clean={};
+  for(const ch of ALL){
+    const v=p.glyphs[ch];
+    if(typeof v==="string"&&v.startsWith("data:image/png;base64,"))clean[ch]=v;
+  }
+  if(Object.keys(clean).length!==62)return null;
+  return{id,name,characterCount:62,created:Number(p.created)||Date.now(),updated:Number(p.updated)||Date.now(),glyphs:clean};
+}
+
+function packs(){
+  const keys=[
+    "handcaption_packs_v9",
+    "handcaption_packs_v8",
+    "handcaption_packs_v7",
+    "handcaption_packs_v6",
+    "handcaption_packs_v5",
+    "handcaption_packs"
+  ];
+  for(const key of keys){
+    const raw=localStorage.getItem(key);
+    if(!raw)continue;
+    const list=safeArray(raw).map(normalizePack).filter(Boolean).slice(0,HC_SECURITY.MAX_PACKS);
+    if(list.length){
+      try{localStorage.setItem("handcaption_packs_v9",JSON.stringify(list))}catch(_){}
+      return list;
+    }
+  }
+  return [];
+}
+
+function savePacks(list){
+  const safe=list.map(normalizePack).filter(Boolean).slice(0,HC_SECURITY.MAX_PACKS);
+  try{
+    localStorage.setItem("handcaption_packs_v9",JSON.stringify(safe));
+    return true;
+  }catch(_){
+    alert("Storage is full. Delete an old handwriting pack.");
+    return false;
+  }
+}
+
+function selectedPack(){
+  return packs().find(p=>p.id===selectedPackId)||null;
+}
+
+/* ---------- Guided handwriting ---------- */
+
+function currentChar(){return ALL[currentCharIndex]}
+
+function blankCanvas(){
+  const d=wctx.getImageData(0,0,writingCanvas.width,writingCanvas.height).data;
+  for(let i=3;i<d.length;i+=4)if(d[i]>0)return false;
+  return true;
+}
+
+function captureGlyph(){
+  glyphs[currentChar()]=blankCanvas()?null:writingCanvas.toDataURL("image/png");
+}
+
+function setGlyphCanvas(src){
+  wctx.clearRect(0,0,writingCanvas.width,writingCanvas.height);
+  if(!src){updateWritingUI();return}
+  const im=new Image();
+  im.onload=()=>{
+    wctx.drawImage(im,0,0,writingCanvas.width,writingCanvas.height);
+    updateWritingUI();
+  };
+  im.src=src;
+}
+
+function pushWritingHistory(ch){
+  const src=blankCanvas()?"":writingCanvas.toDataURL("image/png");
+  let h=writingHistory.get(ch);
+  if(!h){h={states:[""],index:0};writingHistory.set(ch,h)}
+  if(h.states[h.index]===src)return;
+  h.states=h.states.slice(0,h.index+1);
+  h.states.push(src);
+  h.index=h.states.length-1;
+}
+
+function updateWritingUI(){
+  const ch=currentChar();
+  const written=!!glyphs[ch];
+  const completed=ALL.filter(c=>!!glyphs[c]).length;
+
+  $("currentChar").textContent=ch;
+  $("guideChar").textContent=ch;
+  $("charProgress").textContent=`${currentCharIndex+1} / 62`;
+  $("charStatus").textContent=written?"✓ Written":"Not written";
+  $("charStatus").style.color=written?"#14733e":"#777";
+  $("writingProgressBar").style.width=`${completed/62*100}%`;
+  $("backChar").disabled=currentCharIndex===0;
+  $("nextChar").disabled=!written;
+  $("nextChar").textContent=currentCharIndex===61?"Finish ✓":"Next →";
+
+  const list=$("characterChecklist");
+  list.replaceChildren();
+  ALL.forEach((c,i)=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="character-check"+(glyphs[c]?" done":"")+(i===currentCharIndex?" current":"");
+    b.textContent=c;
+    b.title=`Character ${i+1} of 62`;
+    b.onclick=()=>goToCharacter(i);
+    list.append(b);
+  });
+
+  $("progressText").textContent=`${completed} / 62 completed`;
+  $("progressMessage").textContent=completed===62
+    ?"✓ All characters completed. You can save this pack."
+    :`${62-completed} character${62-completed===1?"":"s"} remaining.`;
+  $("progressBar").style.width=`${completed/62*100}%`;
+  $("savePack").disabled=completed!==62;
+}
+
+function goToCharacter(index){
+  if(index<0||index>=62)return;
+  captureGlyph();
+  currentCharIndex=index;
+  setGlyphCanvas(glyphs[currentChar()]||"");
+  updateWritingUI();
+}
+
+function clearCurrentCharacter(){
+  wctx.clearRect(0,0,writingCanvas.width,writingCanvas.height);
+  glyphs[currentChar()]=null;
+  pushWritingHistory(currentChar());
+  updateWritingUI();
+}
+
+function resetNewPack(name="My Handwriting"){
+  for(const c of ALL)delete glyphs[c];
+  writingHistory.clear();
+  currentCharIndex=0;
+  currentEditingPackId=null;
+  $("packName").value=name;
+  wctx.clearRect(0,0,writingCanvas.width,writingCanvas.height);
+  updateWritingUI();
+  lockMedia();
+}
+
+function startWriting(e){
+  e.preventDefault();
+  writing=true;
+  try{writingCanvas.setPointerCapture(e.pointerId)}catch(_){}
+  const r=writingCanvas.getBoundingClientRect();
+  wctx.beginPath();
+  wctx.moveTo(
+    (e.clientX-r.left)*writingCanvas.width/r.width,
+    (e.clientY-r.top)*writingCanvas.height/r.height
+  );
+}
+
+function moveWriting(e){
+  if(!writing)return;
+  e.preventDefault();
+  const r=writingCanvas.getBoundingClientRect();
+  const x=(e.clientX-r.left)*writingCanvas.width/r.width;
+  const y=(e.clientY-r.top)*writingCanvas.height/r.height;
+  wctx.lineCap="round";
+  wctx.lineJoin="round";
+  wctx.lineWidth=8;
+  wctx.strokeStyle="#111";
+  wctx.lineTo(x,y);
+  wctx.stroke();
+  $("charStatus").textContent="Writing…";
+}
+
+function stopWriting(){
+  if(!writing)return;
+  writing=false;
+  captureGlyph();
+  pushWritingHistory(currentChar());
+  updateWritingUI();
+}
+
+writingCanvas.addEventListener("pointerdown",startWriting);
+writingCanvas.addEventListener("pointermove",moveWriting);
+writingCanvas.addEventListener("pointerup",stopWriting);
+writingCanvas.addEventListener("pointercancel",stopWriting);
+
+$("redrawChar").onclick=clearCurrentCharacter;
+$("backChar").onclick=()=>{captureGlyph();goToCharacter(currentCharIndex-1)};
+$("nextChar").onclick=()=>{
+  captureGlyph();
+  if(!glyphs[currentChar()]){
+    alert("Write this character before continuing.");
+    return;
+  }
+  if(currentCharIndex<61)goToCharacter(currentCharIndex+1);
+  else updateWritingUI();
+};
+
+$("characterChecklist").addEventListener("click",()=>{});
+
+$("savePack").onclick=()=>{
+  captureGlyph();
+  const completed=ALL.filter(c=>!!glyphs[c]).length;
+  if(completed!==62){
+    alert("Complete all 62 characters first.");
+    return;
+  }
+
+  const ps=packs();
+  const name=$("packName").value.replace(/[<>]/g,"").trim().slice(0,HC_SECURITY.MAX_PACK_NAME)||"My Handwriting";
+  let p=currentEditingPackId?ps.find(x=>x.id===currentEditingPackId):null;
+
+  if(!p){
+    if(ps.length>=HC_SECURITY.MAX_PACKS){
+      alert("You can keep up to 20 handwriting packs.");
+      return;
+    }
+    p={id:"pack_"+Date.now()+"_"+Math.random().toString(36).slice(2),created:Date.now()};
+    ps.push(p);
+  }
+
+  p.name=name;
+  p.characterCount=62;
+  p.updated=Date.now();
+  p.glyphs={};
+  for(const c of ALL)p.glyphs[c]=glyphs[c];
+
+  if(savePacks(ps)){
+    currentEditingPackId=p.id;
+    selectedPackId=p.id;
+    localStorage.setItem("handcaption_selected_pack",p.id);
+    renderPacks();
+    unlockMedia();
+    alert("✓ Handwriting pack saved.");
+  }
+};
+
+$("clearPack").onclick=()=>{
+  if(confirm("Erase all 62 characters?"))resetNewPack("My Handwriting");
+};
+
+$("newPack").onclick=()=>{
+  resetNewPack("New Handwriting");
+  window.scrollTo({top:0,behavior:"smooth"});
+};
+
+function loadPack(id){
+  const p=packs().find(x=>x.id===id);
+  if(!p)return;
+
+  currentEditingPackId=id;
+  $("packName").value=p.name;
+  writingHistory.clear();
+
+  for(const c of ALL)glyphs[c]=p.glyphs[c];
+  currentCharIndex=0;
+  setGlyphCanvas(glyphs[currentChar()]||"");
+  updateWritingUI();
+
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function deletePack(id){
+  const p=packs().find(x=>x.id===id);
+  if(!p||!confirm(`Delete "${p.name}"?`))return;
+
+  const next=packs().filter(x=>x.id!==id);
+  savePacks(next);
+
+  if(selectedPackId===id)selectedPackId=next[0]?.id||"";
+  if(currentEditingPackId===id)currentEditingPackId=null;
+
+  localStorage.setItem("handcaption_selected_pack",selectedPackId);
+  renderPacks();
+}
+
+$("deletePack").onclick=()=>{if(selectedPackId)deletePack(selectedPackId)};
+
 function renderPacks(){
   const ps=packs();
   $("savedPacks").replaceChildren();
   $("packSelect").replaceChildren();
+
   if(!ps.length){
-    const opt=document.createElement("option");
-    opt.value=""; opt.textContent="No saved pack";
-    $("packSelect").append(opt);
-    $("deletePack").disabled=true; lockMedia(); return;
+    const o=document.createElement("option");
+    o.value="";
+    o.textContent="No pack selected";
+    $("packSelect").append(o);
+    $("deletePack").disabled=true;
+    lockMedia();
+    return;
   }
+
   ps.forEach(p=>{
-    const opt=document.createElement("option");
-    opt.value=p.id; opt.textContent=p.name; $("packSelect").append(opt);
+    const o=document.createElement("option");
+    o.value=p.id;
+    o.textContent=p.name;
+    $("packSelect").append(o);
 
     const item=document.createElement("div");
     item.className="pack-item"+(p.id===selectedPackId?" selected":"");
+
+    const name=document.createElement("strong");
+    name.textContent="✍️ "+p.name;
+
     const small=document.createElement("small");
     small.textContent="62 characters";
-    item.append(document.createTextNode("✍️ "+p.name),small);
 
     const buttons=document.createElement("div");
     buttons.className="pack-buttons";
-    [["Use","primary",()=>selectPack(p.id)],
-     ["Edit","ghost",()=>loadPack(p.id)],
-     ["Delete","danger",()=>deletePack(p.id)]].forEach(([text,cls,fn])=>{
-       const b=document.createElement("button");
-       b.textContent=text; b.className=cls; b.onclick=fn; buttons.append(b);
-     });
-    item.append(buttons);
+
+    const use=document.createElement("button");
+    use.className="primary";
+    use.textContent="Use";
+    use.onclick=()=>selectPack(p.id);
+
+    const edit=document.createElement("button");
+    edit.className="ghost";
+    edit.textContent="Edit";
+    edit.onclick=()=>loadPack(p.id);
+
+    const del=document.createElement("button");
+    del.className="danger";
+    del.textContent="Delete";
+    del.onclick=()=>deletePack(p.id);
+
+    buttons.append(use,edit,del);
+    item.append(name,small,buttons);
     $("savedPacks").append(item);
   });
-  if(!selectedPackId || !ps.some(p=>p.id===selectedPackId)) selectedPackId=ps[0].id;
+
+  if(!selectedPackId||!ps.some(p=>p.id===selectedPackId)){
+    selectedPackId=ps[0].id;
+  }
+
   localStorage.setItem("handcaption_selected_pack",selectedPackId);
   $("packSelect").value=selectedPackId;
-  $("deletePack").disabled=false; unlockMedia();
+  $("deletePack").disabled=false;
+  unlockMedia();
 }
-function selectPack(id){if(!packs().some(p=>p.id===id))return;selectedPackId=id;localStorage.setItem("handcaption_selected_pack",id);$("packSelect").value=id;renderPacks();if(currentMediaType==="image")drawImage();if(currentMediaType==="video")drawVideo()}
-function unlockMedia(){$("mediaSection").classList.remove("locked");$("lockedMessage").classList.add("hidden");$("packSelect").disabled=false;$("chooseMediaButton").disabled=!selectedPackId}
-function lockMedia(){$("mediaSection").classList.add("locked");$("lockedMessage").classList.remove("hidden");$("packSelect").disabled=true;$("chooseMediaButton").disabled=true}
+
+function selectPack(id){
+  if(!packs().some(p=>p.id===id))return;
+  selectedPackId=id;
+  localStorage.setItem("handcaption_selected_pack",id);
+  $("packSelect").value=id;
+  renderPacks();
+  renderCurrentMedia();
+}
+
 $("packSelect").onchange=()=>selectPack($("packSelect").value);
-$("savePack").onclick=()=>{if(count()!==62){alert("Write all 62 characters first.");return}const ps=packs(),name=$("packName").value.replace(/[<>]/g,"").trim().slice(0,HC_SECURITY.MAX_PACK_NAME)||"My Handwriting";let p=currentEditingPackId?ps.find(x=>x.id===currentEditingPackId):ps.find(x=>x.name.toLowerCase()===name.toLowerCase());if(ps.length>=HC_SECURITY.MAX_PACKS){alert("You can keep up to 20 handwriting packs.");return}if(!p){p={id:"pack_"+Date.now()+"_"+Math.random().toString(36).slice(2),created:Date.now()};ps.push(p)}p.name=name;p.characterCount=62;p.updated=Date.now();p.glyphs={};canvases.forEach((i,ch)=>p.glyphs[ch]=i.canvas.toDataURL("image/png"));if(savePacks(ps)){currentEditingPackId=p.id;selectedPackId=p.id;localStorage.setItem("handcaption_selected_pack",p.id);renderPacks();alert("✓ Handwriting pack saved.")}}
-$("clearPack").onclick=()=>{if(!confirm("Erase all 62 characters?"))return;canvases.forEach((i,ch)=>{i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height);history.set(ch,{states:[],index:-1});push(ch);update(ch)});currentEditingPackId=null;$("packName").value="My Handwriting";updateProgress();lockMedia()}
-$("newPack").onclick=()=>{canvases.forEach((i,ch)=>{i.canvas.getContext("2d").clearRect(0,0,i.canvas.width,i.canvas.height);history.set(ch,{states:[],index:-1});push(ch);update(ch)});currentEditingPackId=null;$("packName").value="New Handwriting";updateProgress();window.scrollTo({top:0,behavior:"smooth"})}
-function loadPack(id){const p=packs().find(x=>x.id===id);if(!p)return;currentEditingPackId=id;$("packName").value=p.name;ALL.forEach(ch=>{const i=canvases.get(ch),ctx=i.canvas.getContext("2d");ctx.clearRect(0,0,i.canvas.width,i.canvas.height);if(p.glyphs?.[ch]){const im=new Image();im.onload=()=>{ctx.drawImage(im,0,0,180,90);history.set(ch,{states:[snap(ch)],index:0});update(ch);updateProgress();buttons(ch)};im.src=p.glyphs[ch]}else{history.set(ch,{states:[snap(ch)],index:0});update(ch)}});window.scrollTo({top:0,behavior:"smooth"})}
-function deletePack(id){const p=packs().find(x=>x.id===id);if(!p||!confirm(`Delete "${p.name}"?`))return;const ps=packs().filter(x=>x.id!==id);savePacks(ps);if(selectedPackId===id)selectedPackId=ps[0]?.id||"";if(currentEditingPackId===id)currentEditingPackId=null;localStorage.setItem("handcaption_selected_pack",selectedPackId);renderPacks()}
-$("deletePack").onclick=()=>{if(selectedPackId)deletePack(selectedPackId)}
 
-$("chooseMediaButton").onclick=()=>{if(selectedPackId)$("mediaInput").click()}
-$("mediaInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;if(currentVideoURL)URL.revokeObjectURL(currentVideoURL);textLayer=null;$("editorWrap").classList.remove("hidden");if(f.type.startsWith("image/")){currentMediaType="image";$("mediaType").textContent="PHOTO";$("imageEditor").classList.remove("hidden");$("videoEditor").classList.add("hidden");const im=new Image();im.onload=()=>{baseImage=im;fitImage()};im.src=URL.createObjectURL(f)}else if(f.type.startsWith("video/")){currentMediaType="video";$("mediaType").textContent="VIDEO";$("imageEditor").classList.add("hidden");$("videoEditor").classList.remove("hidden");currentVideoURL=URL.createObjectURL(f);$("videoPreview").src=currentVideoURL;$("videoPreview").load();$("videoPreview").onloadedmetadata=()=>{$("videoOverlay").width=$("videoPreview").videoWidth;$("videoOverlay").height=$("videoPreview").videoHeight}}else alert("Choose a photo or video.");$("mediaInput").value=""}
-function fitImage(){const s=Math.min(1000/baseImage.width,700/baseImage.height,1);$("editorCanvas").width=Math.round(baseImage.width*s);$("editorCanvas").height=Math.round(baseImage.height*s);drawImage()}
-function glyph(src){if(glyphCache.has(src))return Promise.resolve(glyphCache.get(src));return new Promise((res,rej)=>{const im=new Image();im.onload=()=>{glyphCache.set(src,im);res(im)};im.onerror=rej;im.src=src})}
-async function drawImage(){if(!baseImage)return;const c=$("editorCanvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(baseImage,0,0,c.width,c.height);if(!textLayer)return;const p=selectedPack();if(!p)return;let x=textLayer.x,y=textLayer.y,s=+$("sizeInput").value;for(const ch of textLayer.text){if(p.glyphs?.[ch]){try{const im=await glyph(p.glyphs[ch]),k=s/90,w=180*k,h=90*k;ctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ctx.fillStyle=textLayer.color;ctx.font=`${s}px cursive`;ctx.fillText(ch,x,y);x+=ctx.measureText(ch).width+s*.08}}}
-$("addCaption").onclick=()=>{const t=$("captionInput").value.slice(0,HC_SECURITY.MAX_CAPTION);if(!selectedPackId){alert("Select a handwriting pack.");return}if(!t.trim()){alert("Type a caption.");return}textLayer={text:t,x:30,y:currentMediaType==="image"?$("editorCanvas").height*.82:$("videoOverlay").height*.82,color:$("colorInput").value};currentMediaType==="image"?drawImage():drawVideo()}
-function point(c,e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}}
-$("editorCanvas").onpointerdown=e=>{if(!textLayer)return;const p=point($("editorCanvas"),e),s=+$("sizeInput").value;if(p.y>textLayer.y-s*1.2&&p.y<textLayer.y+40){dragging=true;dragOffset={x:p.x-textLayer.x,y:p.y-textLayer.y}}};$("editorCanvas").onpointermove=e=>{if(!dragging)return;const p=point($("editorCanvas"),e);textLayer.x=p.x-dragOffset.x;textLayer.y=p.y-dragOffset.y;drawImage()};$("editorCanvas").onpointerup=()=>dragging=false;$("editorCanvas").onpointercancel=()=>dragging=false;
-$("sizeInput").oninput=()=>currentMediaType==="image"?drawImage():drawVideo();$("colorInput").oninput=()=>{if(textLayer)textLayer.color=$("colorInput").value;currentMediaType==="image"?drawImage():drawVideo()};$("captionInput").oninput=()=>{if(textLayer){textLayer.text=$("captionInput").value;currentMediaType==="image"?drawImage():drawVideo()}}
-async function drawVideo(){const c=$("videoOverlay");if(!c.width||!textLayer)return;const ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const p=selectedPack();if(!p)return;let x=textLayer.x,y=textLayer.y,s=+$("sizeInput").value*(c.width/1000);for(const ch of textLayer.text){if(p.glyphs?.[ch]){try{const im=await glyph(p.glyphs[ch]),k=s/90,w=180*k,h=90*k;ctx.drawImage(im,x,y-h*.75,w,h);x+=w*.72}catch(_){}}else{ctx.fillStyle=textLayer.color;ctx.font=`${s}px cursive`;ctx.fillText(ch,x,y);x+=ctx.measureText(ch).width+s*.08}}}
-$("videoPreview").ontimeupdate=drawVideo;$("exportBtn").onclick=async()=>{if(currentMediaType!=="image"){alert("Video export is the next feature.");return}await drawImage();const a=document.createElement("a");a.download="handcaption.png";a.href=$("editorCanvas").toDataURL("image/png",1);a.click()}
-function startup(){const ps=packs();if(ps.length){if(!selectedPackId||!ps.some(p=>p.id===selectedPackId))selectedPackId=ps[0].id;localStorage.setItem("handcaption_selected_pack",selectedPackId);renderPacks()}else lockMedia();updateProgress()}startup();
+function lockMedia(){
+  $("mediaSection").classList.add("locked");
+  $("lockedMessage").classList.remove("hidden");
+  $("packSelect").disabled=true;
+  $("chooseMediaButton").disabled=true;
+}
 
-window.addEventListener("pagehide",()=>{if(currentVideoURL){URL.revokeObjectURL(currentVideoURL);currentVideoURL=null;}});
+function unlockMedia(){
+  $("mediaSection").classList.remove("locked");
+  $("lockedMessage").classList.add("hidden");
+  $("packSelect").disabled=false;
+  $("chooseMediaButton").disabled=!selectedPackId;
+}
+
+/* ---------- Media ---------- */
+
+function validFile(f){
+  if(!f)return{ok:false,msg:"No file selected."};
+  if(HC_SECURITY.IMAGE_TYPES.includes(f.type)&&f.size<=HC_SECURITY.MAX_IMAGE_BYTES)return{ok:true,type:"image"};
+  if(HC_SECURITY.VIDEO_TYPES.includes(f.type)&&f.size<=HC_SECURITY.MAX_VIDEO_BYTES)return{ok:true,type:"video"};
+  return{ok:false,msg:"Unsupported or oversized file. Images: JPEG/PNG/WebP up to 15 MB. Videos: MP4/WebM/MOV up to 100 MB."};
+}
+
+function releaseMediaURLs(){
+  if(currentVideoURL){URL.revokeObjectURL(currentVideoURL);currentVideoURL=null}
+  if(currentImageURL){URL.revokeObjectURL(currentImageURL);currentImageURL=null}
+}
+
+function clearEditor(){
+  captions=[];
+  activeCaptionId=null;
+  historyStates=[];
+  historyIndex=-1;
+  $("captionLayers").replaceChildren();
+  $("captionInput").value="";
+}
+
+function addMedia(){
+  if(selectedPackId)$("mediaInput").click();
+}
+
+$("chooseMediaButton").onclick=addMedia;
+$("addMediaButton").onclick=addMedia;
+
+$("mediaInput").onchange=e=>{
+  const f=e.target.files?.[0];
+  if(!f)return;
+
+  const v=validFile(f);
+  if(!v.ok){
+    alert(v.msg);
+    e.target.value="";
+    return;
+  }
+
+  releaseMediaURLs();
+  clearEditor();
+
+  $("editorWrap").classList.remove("hidden");
+
+  if(v.type==="image"){
+    currentMediaType="image";
+    $("mediaType").textContent="PHOTO";
+    $("imageEditor").classList.remove("hidden");
+    $("videoEditor").classList.add("hidden");
+
+    currentImageURL=URL.createObjectURL(f);
+    const im=new Image();
+
+    im.onload=()=>{
+      baseImage=im;
+      fitImage();
+    };
+
+    im.onerror=()=>{
+      releaseMediaURLs();
+      alert("Could not open this image.");
+    };
+
+    im.src=currentImageURL;
+  }else{
+    currentMediaType="video";
+    $("mediaType").textContent="VIDEO";
+    $("imageEditor").classList.add("hidden");
+    $("videoEditor").classList.remove("hidden");
+
+    currentVideoURL=URL.createObjectURL(f);
+    const video=$("videoPreview");
+    video.src=currentVideoURL;
+    video.load();
+
+    video.onloadedmetadata=()=>{
+      $("videoOverlay").width=video.videoWidth||1280;
+      $("videoOverlay").height=video.videoHeight||720;
+      drawVideo();
+    };
+  }
+
+  e.target.value="";
+};
+
+$("removeMedia").onclick=()=>{
+  releaseMediaURLs();
+  baseImage=null;
+  currentMediaType=null;
+  clearEditor();
+  $("videoPreview").pause();
+  $("videoPreview").removeAttribute("src");
+  $("videoPreview").load();
+  $("editorWrap").classList.add("hidden");
+};
+
+function fitImage(){
+  if(!baseImage)return;
+  const s=Math.min(1000/baseImage.width,700/baseImage.height,1);
+  $("editorCanvas").width=Math.round(baseImage.width*s);
+  $("editorCanvas").height=Math.round(baseImage.height*s);
+  drawImage();
+}
+
+/* ---------- Caption layers ---------- */
+
+function cloneCaptions(){
+  return JSON.parse(JSON.stringify(captions));
+}
+
+function saveEditorHistory(){
+  const state=JSON.stringify({captions,activeCaptionId});
+  if(historyStates[historyIndex]===state)return;
+  historyStates=historyStates.slice(0,historyIndex+1);
+  historyStates.push(state);
+  historyIndex=historyStates.length-1;
+  if(historyStates.length>30){
+    historyStates.shift();
+    historyIndex--;
+  }
+}
+
+function restoreEditorHistory(i){
+  if(i<0||i>=historyStates.length)return;
+  const s=JSON.parse(historyStates[i]);
+  captions=s.captions||[];
+  activeCaptionId=s.activeCaptionId||null;
+  historyIndex=i;
+  renderLayerUI();
+  syncControls();
+  renderCurrentMedia();
+}
+
+function createCaption(){
+  if(captions.length>=10){
+    alert("Maximum 10 caption layers.");
+    return null;
+  }
+
+  return{
+    id:"cap_"+Date.now()+"_"+Math.random().toString(36).slice(2),
+    text:$("captionInput").value.slice(0,HC_SECURITY.MAX_CAPTION),
+    x:30,
+    y:currentMediaType==="image"?$("editorCanvas").height*.82:$("videoOverlay").height*.82,
+    size:+$("sizeInput").value,
+    color:$("colorInput").value,
+    rotation:+$("rotationInput").value,
+    animation:$("animationInput").value,
+    duration:+$("durationInput").value
+  };
+}
+
+function activeCaption(){
+  return captions.find(c=>c.id===activeCaptionId)||null;
+}
+
+function syncControls(){
+  const c=activeCaption();
+  if(!c)return;
+  $("captionInput").value=c.text;
+  $("sizeInput").value=c.size;
+  $("colorInput").value=c.color;
+  $("rotationInput").value=c.rotation;
+  $("animationInput").value=c.animation;
+  $("durationInput").value=c.duration;
+}
+
+function renderLayerUI(){
+  const box=$("captionLayers");
+  box.replaceChildren();
+
+  captions.forEach((c,i)=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="layer-pill"+(c.id===activeCaptionId?" active":"");
+    b.textContent=`${i+1}. ${c.text.slice(0,18)||"Caption"}`;
+    b.onclick=()=>{
+      activeCaptionId=c.id;
+      syncControls();
+      renderLayerUI();
+      renderCurrentMedia();
+    };
+    box.append(b);
+  });
+}
+
+$("addCaption").onclick=()=>{
+  if(!selectedPackId){
+    alert("Select a handwriting pack.");
+    return;
+  }
+
+  const text=$("captionInput").value.trim().slice(0,HC_SECURITY.MAX_CAPTION);
+  if(!text){
+    alert("Type a caption.");
+    return;
+  }
+
+  let c=activeCaption();
+
+  if(c){
+    c.text=text;
+    c.size=+$("sizeInput").value;
+    c.color=$("colorInput").value;
+    c.rotation=+$("rotationInput").value;
+    c.animation=$("animationInput").value;
+    c.duration=+$("durationInput").value;
+  }else{
+    c=createCaption();
+    if(!c)return;
+    captions.push(c);
+    activeCaptionId=c.id;
+  }
+
+  saveEditorHistory();
+  renderLayerUI();
+  renderCurrentMedia();
+};
+
+$("deleteCaption").onclick=()=>{
+  if(!activeCaptionId)return;
+  captions=captions.filter(c=>c.id!==activeCaptionId);
+  activeCaptionId=captions[0]?.id||null;
+  saveEditorHistory();
+  renderLayerUI();
+  syncControls();
+  renderCurrentMedia();
+};
+
+["captionInput","sizeInput","colorInput","rotationInput","animationInput","durationInput"].forEach(id=>{
+  $(id).addEventListener("input",()=>{
+    const c=activeCaption();
+    if(!c)return;
+
+    if(id==="captionInput")c.text=$(id).value.slice(0,HC_SECURITY.MAX_CAPTION);
+    if(id==="sizeInput")c.size=+$(id).value;
+    if(id==="colorInput")c.color=$(id).value;
+    if(id==="rotationInput")c.rotation=+$(id).value;
+    if(id==="animationInput")c.animation=$(id).value;
+    if(id==="durationInput")c.duration=+$(id).value;
+
+    renderLayerUI();
+    renderCurrentMedia();
+  });
+});
+
+function animationProgress(c,time){
+  const d=Math.max(.2,+c.duration||1.2);
+  if(c.animation==="none")return 1;
+  const t=Math.max(0,time||0);
+  return Math.max(0,Math.min(1,t/d));
+}
+
+async function drawCaption(ctx,c,time=0,scale=1){
+  const pack=selectedPack();
+  if(!pack)return;
+
+  let progress=animationProgress(c,time);
+  let alpha=1;
+  let offsetX=0;
+  let scaleAnim=1;
+
+  if(c.animation==="fade")alpha=progress;
+  if(c.animation==="slide"){alpha=progress;offsetX=(1-progress)*80*scale}
+  if(c.animation==="pop"){alpha=progress;scaleAnim=.75+.25*progress}
+
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.translate(c.x+offsetX,c.y);
+  ctx.rotate((c.rotation*Math.PI)/180);
+  ctx.scale(scaleAnim,scaleAnim);
+
+  let x=0;
+  const targetCount=c.animation==="write"?Math.ceil(c.text.length*progress):c.text.length;
+
+  for(let i=0;i<targetCount;i++){
+    const ch=c.text[i];
+    const src=pack.glyphs?.[ch];
+
+    if(src){
+      try{
+        const im=await loadGlyph(src);
+        const k=(c.size*scale)/90;
+        const w=180*k;
+        const h=90*k;
+        ctx.drawImage(im,x,-h*.75,w,h);
+        x+=w*.72;
+      }catch(_){}
+    }else{
+      ctx.fillStyle=c.color;
+      ctx.font=`${c.size*scale}px cursive`;
+      ctx.textBaseline="alphabetic";
+      ctx.fillText(ch,x,0);
+      x+=ctx.measureText(ch).width+c.size*.08;
+    }
+  }
+
+  ctx.restore();
+}
+
+const glyphCache=new Map();
+
+function loadGlyph(src){
+  if(glyphCache.has(src))return Promise.resolve(glyphCache.get(src));
+  return new Promise((resolve,reject)=>{
+    const im=new Image();
+    im.onload=()=>{glyphCache.set(src,im);resolve(im)};
+    im.onerror=reject;
+    im.src=src;
+  });
+}
+
+async function drawImage(time=0){
+  if(!baseImage)return;
+
+  const c=$("editorCanvas");
+  const ctx=c.getContext("2d");
+
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.drawImage(baseImage,0,0,c.width,c.height);
+
+  for(const cap of captions){
+    await drawCaption(ctx,cap,time,1);
+  }
+}
+
+async function drawVideo(){
+  const c=$("videoOverlay");
+  const video=$("videoPreview");
+  if(!c.width||!selectedPackId)return;
+
+  const ctx=c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  const scale=c.width/1000;
+
+  for(const cap of captions){
+    await drawCaption(ctx,cap,video.currentTime,scale);
+  }
+}
+
+function renderCurrentMedia(){
+  if(currentMediaType==="image")drawImage(0);
+  if(currentMediaType==="video")drawVideo();
+}
+
+$("videoPreview").addEventListener("timeupdate",drawVideo);
+$("videoPreview").addEventListener("play",()=>{
+  const loop=()=>{
+    if($("videoPreview").paused)return;
+    drawVideo();
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+});
+
+/* ---------- Drag caption on photo ---------- */
+
+function canvasPoint(c,e){
+  const r=c.getBoundingClientRect();
+  return{
+    x:(e.clientX-r.left)*c.width/r.width,
+    y:(e.clientY-r.top)*c.height/r.height
+  };
+}
+
+$("editorCanvas").addEventListener("pointerdown",e=>{
+  const c=activeCaption();
+  if(!c)return;
+
+  const p=canvasPoint($("editorCanvas"),e);
+  if(Math.abs(p.x-c.x)<220&&Math.abs(p.y-c.y)<Math.max(100,c.size*1.4)){
+    dragging=true;
+    dragOffset={x:p.x-c.x,y:p.y-c.y};
+    try{$("editorCanvas").setPointerCapture(e.pointerId)}catch(_){}
+  }
+});
+
+$("editorCanvas").addEventListener("pointermove",e=>{
+  if(!dragging)return;
+  const c=activeCaption();
+  if(!c)return;
+
+  const p=canvasPoint($("editorCanvas"),e);
+  c.x=p.x-dragOffset.x;
+  c.y=p.y-dragOffset.y;
+  drawImage();
+});
+
+$("editorCanvas").addEventListener("pointerup",()=>{
+  if(dragging){
+    dragging=false;
+    saveEditorHistory();
+  }
+});
+$("editorCanvas").addEventListener("pointercancel",()=>dragging=false);
+
+/* ---------- Export ---------- */
+
+$("exportBtn").onclick=async()=>{
+  if(currentMediaType==="image"){
+    await drawImage(999);
+    const a=document.createElement("a");
+    a.download="handcaption.png";
+    a.rel="noopener";
+    a.href=$("editorCanvas").toDataURL("image/png",1);
+    document.body.append(a);
+    a.click();
+    a.remove();
+    return;
+  }
+
+  if(currentMediaType==="video"){
+    await exportVideo();
+  }
+};
+
+async function exportVideo(){
+  const video=$("videoPreview");
+
+  if(!video.src){
+    alert("Choose a video first.");
+    return;
+  }
+
+  if(!window.MediaRecorder||!video.captureStream){
+    alert("This Android browser does not support local video export. Photo export still works.");
+    return;
+  }
+
+  const canvas=$("videoOverlay");
+  const source=video.captureStream();
+  const overlay=canvas.captureStream(30);
+  const stream=new MediaStream([
+    ...source.getVideoTracks(),
+    ...overlay.getVideoTracks()
+  ]);
+
+  const mime=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"]
+    .find(t=>MediaRecorder.isTypeSupported(t));
+
+  if(!mime){
+    alert("No supported browser video export format was found.");
+    return;
+  }
+
+  const chunks=[];
+  const recorder=new MediaRecorder(stream,{mimeType:mime});
+
+  recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+  recorder.onerror=()=>alert("Video export failed.");
+
+  recorder.onstop=()=>{
+    const blob=new Blob(chunks,{type:mime});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.download="handcaption-video.webm";
+    a.href=url;
+    a.rel="noopener";
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  };
+
+  const oldTime=video.currentTime;
+  video.currentTime=0;
+
+  recorder.start(250);
+  await video.play().catch(()=>{});
+
+  const finish=()=>{
+    video.removeEventListener("ended",finish);
+    recorder.stop();
+    video.pause();
+    video.currentTime=oldTime;
+  };
+
+  video.addEventListener("ended",finish);
+}
+
+function startup(){
+  const ps=packs();
+
+  if(ps.length){
+    if(!selectedPackId||!ps.some(p=>p.id===selectedPackId)){
+      selectedPackId=ps[0].id;
+    }
+    localStorage.setItem("handcaption_selected_pack",selectedPackId);
+    renderPacks();
+  }else{
+    lockMedia();
+  }
+
+  updateWritingUI();
+}
+
+window.addEventListener("pagehide",()=>{
+  if(currentVideoURL)URL.revokeObjectURL(currentVideoURL);
+  if(currentImageURL)URL.revokeObjectURL(currentImageURL);
+});
+
+startup();
