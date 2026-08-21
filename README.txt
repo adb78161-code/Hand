@@ -1,63 +1,61 @@
-HANDCAPTION V6 + V7 + V8 — COMPLETE SECURITY BUILD
+HANDCAPTION V9 — PROPER BUILD
 
-This package combines:
-V6: security/privacy foundation
-V7: professional photo editing
-V8: advanced caption layers + local video export where browser support exists
+This V9 is rebuilt from the working V8 page structure rather than replacing the whole application with a different layout.
 
-Replace only:
-- index.html
-- style.css
-- app.js
+V9 HANDWRITING
+- One character at a time: A-Z, a-z, 0-9.
+- Large Android-friendly writing board.
+- Faint/translucent guide character.
+- Guide is never stored in the glyph image.
+- Redraw current character.
+- Back / Next navigation.
+- 1/62 progress.
+- Character checklist for direct correction.
+- Save is enabled only after all 62 characters are written.
+- Existing complete packs from older localStorage versions are migrated.
 
-V6 SECURITY
-- CSP meta policy
-- no external scripts/dependencies
-- safe DOM rendering for pack names
-- defensive local storage migration
-- media MIME allowlist
-- image limit 15 MB
-- video limit 100 MB
-- caption/pack name limits
-- object URL cleanup
-- local-only processing
+V9 EDITOR
+- Add/delete uploaded media.
+- Current media can be removed and another file added.
+- Multiple caption layers.
+- Caption color.
+- Caption rotation.
+- Caption size.
+- Caption animations: none, fade, slide, pop, write-on.
+- Animation duration.
+- Drag captions on photos.
+- Local photo PNG export.
+- Local video preview and WebM export where Android browser APIs support it.
 
-V7 PHOTO EDITOR
-- multiple caption layers
-- drag positioning
-- size
-- color
-- opacity
-- rotation
-- letter spacing
-- shadow
-- duplicate layer
-- undo/redo
-- layer selector
-
-V8 VIDEO
-- local video preview
-- handwriting overlays
-- local browser recording via MediaRecorder when supported
-- WebM export when supported
-- no server upload
-
-IMPORTANT LIMITATIONS
+SECURITY
+- Local-only media processing.
+- File MIME allowlist.
+- Image 15 MB limit.
+- Video 100 MB limit.
+- Caption and pack-name limits.
+- Safe DOM rendering for pack names.
+- CSP meta policy.
+- No external JavaScript dependencies.
+- Temporary object URL cleanup.
 - localStorage is not encrypted.
-- GitHub Pages cannot give this app arbitrary server response security headers, so the CSP meta policy is not equivalent to a server-delivered CSP.
-- Browser support for MediaRecorder/captureStream differs by Android browser.
-- Video export currently targets WebM where supported; MP4/H.264 export is not guaranteed in a normal browser.
+- GitHub Pages cannot provide arbitrary custom server response headers, so the meta CSP is not equivalent to a server-delivered CSP.
 - Do not claim 100% security.
-- Keep a backup of V5/V6 before deploying.
 
-TEST AFTER DEPLOYMENT
-1. Create a 62-character pack.
-2. Save it.
-3. Refresh and confirm it remains.
-4. Edit/delete/use packs.
-5. Upload a small photo.
-6. Add multiple captions.
-7. Test drag/resize/rotation/opacity/shadow/undo/redo.
-8. Upload a small video.
-9. Test local preview and export on the Android browser.
-10. Confirm media is not being sent to any server.
+DEPLOY
+Replace only:
+index.html
+style.css
+app.js
+
+Keep your working V8 backup.
+
+TEST
+1. Create a new pack.
+2. Write A, then B, then navigate back to A and rewrite it.
+3. Complete all 62.
+4. Save.
+5. Refresh and confirm pack remains.
+6. Upload a photo.
+7. Add, rotate, recolor and animate a caption.
+8. Delete the file and add another.
+9. Upload a short video and test preview/export.
